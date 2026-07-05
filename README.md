@@ -48,9 +48,18 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r radar-worker\requirements.txt
-python -c "import h5py, numpy, PIL, pyproj; print('radar worker ok')"
+python -c "import h5py, numpy, PIL, pyproj, rasterio, mercantile; print('radar worker ok')"
 npm run dev
 ```
+
+`rasterio` et `mercantile` servent uniquement au pipeline local de tuiles Web Mercator OPERA. Sur Windows, `pip` installe normalement les wheels précompilés. Si l'installation échoue, mets d'abord `pip` à jour puis relance :
+
+```powershell
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install rasterio mercantile
+```
+
+Le cache radar local est écrit dans `.radar-cache/` et reste ignoré par Git.
 
 Puis ouvre `http://localhost:3000/radar-lab` et clique sur `Rendre la dernière trame`.
 
@@ -60,6 +69,18 @@ Si Python n'est pas dans le `PATH`, pointe Next.js vers un exécutable explicite
 $env:PYTHON_BIN="C:\chemin\vers\python.exe"
 npm run dev
 ```
+
+## Historique radar OPERA local
+
+Le Radar Lab peut preparer les 12 derniers scans reels OPERA DBZH en cache local. Le cache reste sur la machine de developpement parce que les fichiers ODIM HDF5 sont lourds, le rendu Python est couteux et cette etape sert uniquement a valider les trames avant une animation produit.
+
+Le telechargement HDF5, la lecture avec `h5py` et la conversion WebP sont strictement cote serveur. Le navigateur ne recoit jamais la cle `METEOGATE_API_KEY`, ni URL MeteoGate, ni lien HDF5 brut : il ne lit que les routes internes Weyra qui servent les WebP deja presents dans le cache.
+
+Pour preparer l'historique, lance le serveur local avec `METEOGATE_API_KEY` dans `.env.local`, ouvre `http://localhost:3000/radar-lab`, puis clique sur `Preparer les 12 derniers scans`. La page affiche un filmstrip statique des frames pretes, les heures UTC/Europe Paris, la projection et l'etat du georeferencement.
+
+Cette etape n'inclut pas encore l'animation automatique dans Radar Lab ou Atlas. Elle valide seulement que les scans sont reels, ordonnes, rendus en WebP et reutilisables.
+
+Ne commit jamais `.env.local` et ne copie jamais la cle MeteoGate dans le code, les logs, le README ou une URL front-end.
 
 ## Variables d'environnement
 

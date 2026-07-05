@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
-import type { LocationSelection, Observation, RadarFrame } from "@/lib/types";
+import type {
+  LocationSelection,
+  Observation,
+  OperaRadarHistoryFrame,
+  OperaRadarMapTransition,
+  OperaRadarStatus,
+  RadarFrame,
+} from "@/lib/types";
 import { CATEGORY_META } from "@/components/atlas/constants";
 
 type AtlasMapProps = {
@@ -13,16 +20,37 @@ type AtlasMapProps = {
   radarFrameIndex: number;
   radarHost: string;
   radarVisible: boolean;
+  operaRadarFrame: OperaRadarHistoryFrame | null;
+  operaRadarNextFrame: OperaRadarHistoryFrame | null;
+  operaRadarTransition: OperaRadarMapTransition | null;
+  operaPlaybackActive: boolean;
   observationLayerVisible: boolean;
   onMapReady: (map: MapLibreMap) => void;
+  onOperaRadarStatus: (status: OperaRadarStatus) => void;
   onMapClick: (coords: { lat: number; lon: number }) => void;
   onObservationClick: (observation: Observation) => void;
 };
 
-type MutableRasterSource = { setTiles: (tiles: string[]) => void };
+type MutableRasterSource = { setTiles?: (tiles: string[]) => void };
 type MutableGeoJsonSource = { setData: (data: unknown) => void };
+type SourceDataEventLike = { sourceId?: string; isSourceLoaded?: boolean };
+type MapErrorEventLike = { error?: Error & { status?: number; url?: string }; sourceId?: string };
 type ManagedMarker = { marker: Marker; element: HTMLButtonElement; observation: Observation };
 type RadarSlot = "a" | "b";
+type OperaPrewarmResponse = {
+  ok: boolean;
+  style: string;
+  timestamps: Array<{
+    timestamp: string;
+    requested: number;
+    cacheHits: number;
+    generated: number;
+    failed: number;
+    durationMs: number;
+    tileUrls: string[];
+  }>;
+  error?: string;
+};
 
 const RADAR_SLOTS: RadarSlot[] = ["a", "b"];
 const OBS_SOURCE = "weyra-observations";
@@ -31,6 +59,21 @@ const CLUSTER_CIRCLE = "weyra-observation-cluster";
 const CLUSTER_LABEL = "weyra-observation-cluster-label";
 const DOT_HALO = "weyra-observation-dot-halo";
 const DOT_CIRCLE = "weyra-observation-dot";
+const OPERA_RADAR_SLOTS: RadarSlot[] = ["a", "b"];
+const OPERA_RADAR_OPACITY = 0.62;
+// Overview tiles come from published scan packs: static WebP, always complete for a ready pack.
+const OPERA_OVERVIEW_MIN_ZOOM = 3;
+const OPERA_OVERVIEW_MAX_ZOOM = 7;
+// Detail tiles are optional sharpening on top of the overview; they never gate the display.
+const OPERA_DETAIL_MIN_ZOOM = 8;
+const OPERA_DETAIL_MAX_ZOOM = 9;
+// Below map zoom 8 the radar is overview-only; from 8 the detail takes over as soon as it is loaded.
+const OPERA_DETAIL_MIN_MAP_ZOOM = 8;
+const OPERA_DETAIL_HANDOFF_MS = 0;
+const OPERA_DETAIL_SOURCE_ID = "opera-radar-detail-source";
+const OPERA_DETAIL_LAYER_ID = "opera-radar-detail-layer";
+const OPERA_TILE_LOAD_TIMEOUT_MS = 4000;
+const OPERA_TILE_RENDER_VERSION = "v3c";
 
 const INITIAL_CAMERA = {
   // Stable North/Belgium framing: Calais / Dunkerque / Lille / Tournai / Arras.
@@ -69,53 +112,75 @@ function observationCollection(observations: Observation[]) {
         id: observation.id,
         category: observation.category,
         intensity: observation.intensity,
-        // Seed entries deliberately use compact map dots. Only a real uploaded photo gets a photo marker.
-        hasPhoto: Boolean(observation.imageUrl && !observation.isSeed),
+        // Any observation with an image renders as a round photo marker; the rest stay compact dots.
+        hasPhoto: Boolean(observation.imageUrl),
       },
     })),
   };
 }
 
 function tuneAtlasBaseMap(map: MapLibreMap) {
-  // The base vector style remains data-driven. This pass gives it Weyra’s navy ocean, blue roads and subtle labels
-  // without relying on a CSS filter that would also distort the radar.
+  // The base vector style remains data-driven. This pass keeps the map quiet under the radar:
+  // dark navy land, restrained blue transport lines, discreet borders and readable city labels.
   const layers = map.getStyle().layers ?? [];
   for (const layer of layers) {
     const id = layer.id.toLowerCase();
     try {
       if (layer.type === "background") {
-        map.setPaintProperty(layer.id, "background-color", "#061426");
+        map.setPaintProperty(layer.id, "background-color", "#04101f");
       }
       if (layer.type === "fill") {
         if (/(water|ocean|sea|lake|river)/.test(id)) {
-          map.setPaintProperty(layer.id, "fill-color", "#001d3b");
+          map.setPaintProperty(layer.id, "fill-color", "#0b2745");
           map.setPaintProperty(layer.id, "fill-opacity", 1);
         } else if (/(land|park|landcover|wood|forest|building)/.test(id)) {
-          map.setPaintProperty(layer.id, "fill-color", "#071526");
+          map.setPaintProperty(layer.id, "fill-color", "#060f1d");
         }
       }
       if (layer.type === "line") {
-        if (/(motorway|trunk|primary|road|street|highway)/.test(id)) {
-          map.setPaintProperty(layer.id, "line-color", "#174267");
-          map.setPaintProperty(layer.id, "line-opacity", 0.44);
+        if (/(motorway|trunk)/.test(id)) {
+          map.setPaintProperty(layer.id, "line-color", "#1f4d75");
+          map.setPaintProperty(layer.id, "line-opacity", 0.28);
+          map.setPaintProperty(layer.id, "line-width", ["interpolate", ["linear"], ["zoom"], 6, 0.35, 8, 0.55, 10, 0.8, 12, 1.05]);
+          map.setPaintProperty(layer.id, "line-blur", 0);
+        } else if (/(primary|secondary|road|street|highway)/.test(id)) {
+          map.setPaintProperty(layer.id, "line-color", "#173a5f");
+          map.setPaintProperty(layer.id, "line-opacity", 0.2);
+          map.setPaintProperty(layer.id, "line-width", ["interpolate", ["linear"], ["zoom"], 6, 0.2, 8, 0.35, 10, 0.55, 12, 0.75]);
+          map.setPaintProperty(layer.id, "line-blur", 0);
         }
-        if (/(boundary|admin)/.test(id)) {
-          map.setPaintProperty(layer.id, "line-color", "#345e7b");
-          map.setPaintProperty(layer.id, "line-opacity", 0.36);
+        if (/boundary_country/.test(id)) {
+          map.setPaintProperty(layer.id, "line-color", "#6f8499");
+          map.setPaintProperty(layer.id, "line-opacity", 0.34);
+          map.setPaintProperty(layer.id, "line-width", ["interpolate", ["linear"], ["zoom"], 5, 0.55, 8, 0.75, 11, 0.95]);
+          map.setPaintProperty(layer.id, "line-blur", 0);
+        } else if (/(boundary|admin)/.test(id)) {
+          map.setPaintProperty(layer.id, "line-color", "#294663");
+          map.setPaintProperty(layer.id, "line-opacity", 0.14);
+          map.setPaintProperty(layer.id, "line-width", ["interpolate", ["linear"], ["zoom"], 5, 0.2, 8, 0.32, 11, 0.45]);
+          map.setPaintProperty(layer.id, "line-blur", 0);
+        }
+        if (/(waterway|river|canal)/.test(id)) {
+          map.setPaintProperty(layer.id, "line-color", "#12365e");
+          map.setPaintProperty(layer.id, "line-opacity", 0.58);
+          map.setPaintProperty(layer.id, "line-width", ["interpolate", ["linear"], ["zoom"], 6, 0.25, 9, 0.55, 12, 0.8]);
         }
       }
       if (layer.type === "symbol") {
         if (/(state|region|province|country)/.test(id)) {
           // Atlas keeps only local context labels; big country / region text destroys the radar composition.
           map.setLayoutProperty(layer.id, "visibility", "none");
-        } else if (/(place|city|town|village|settlement|road)/.test(id)) {
-          map.setPaintProperty(layer.id, "text-color", "#c9dcef");
-          map.setPaintProperty(layer.id, "text-halo-color", "#061426");
-          map.setPaintProperty(layer.id, "text-halo-width", 1.1);
-          map.setPaintProperty(layer.id, "text-opacity", 0.78);
-          if (/(city|town|village|settlement)/.test(id)) {
-            map.setLayoutProperty(layer.id, "text-size", ["interpolate", ["linear"], ["zoom"], 7, 10, 9.5, 12, 12, 14]);
-          }
+        } else if (/(place|city|town|village|settlement)/.test(id)) {
+          map.setPaintProperty(layer.id, "text-color", "#d9e6f4");
+          map.setPaintProperty(layer.id, "text-halo-color", "#04101f");
+          map.setPaintProperty(layer.id, "text-halo-width", 1.35);
+          map.setPaintProperty(layer.id, "text-opacity", 0.9);
+          map.setLayoutProperty(layer.id, "text-size", ["interpolate", ["linear"], ["zoom"], 7, 10.5, 9.5, 12.5, 12, 14.5]);
+        } else if (/road/.test(id)) {
+          map.setPaintProperty(layer.id, "text-color", "#7898b8");
+          map.setPaintProperty(layer.id, "text-halo-color", "#04101f");
+          map.setPaintProperty(layer.id, "text-halo-width", 1);
+          map.setPaintProperty(layer.id, "text-opacity", 0.46);
         }
       }
     } catch {
@@ -142,10 +207,10 @@ function ensureObservationLayers(map: MapLibreMap) {
     source: OBS_SOURCE,
     filter: ["has", "point_count"],
     paint: {
-      "circle-radius": ["step", ["get", "point_count"], 19, 8, 23, 24, 28],
+      "circle-radius": ["step", ["get", "point_count"], 15, 8, 18, 24, 22],
       "circle-color": "#071b2e",
       "circle-opacity": 0.92,
-      "circle-stroke-width": 3,
+      "circle-stroke-width": 2.2,
       "circle-stroke-color": "#62f2dc",
       "circle-stroke-opacity": 0.9,
       "circle-blur": 0.05,
@@ -157,7 +222,7 @@ function ensureObservationLayers(map: MapLibreMap) {
     source: OBS_SOURCE,
     filter: ["has", "point_count"],
     paint: {
-      "circle-radius": ["step", ["get", "point_count"], 14, 8, 17, 24, 21],
+      "circle-radius": ["step", ["get", "point_count"], 10, 8, 13, 24, 16],
       "circle-color": "#123954",
       "circle-opacity": 0.98,
     },
@@ -184,7 +249,7 @@ function ensureObservationLayers(map: MapLibreMap) {
     filter: noPhotoFilter,
     minzoom: 7.2,
     paint: {
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 7.2, 6, 9.5, 9],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 7.2, 4.5, 9.5, 7],
       "circle-color": "#04111f",
       "circle-stroke-color": "#d9f4ff",
       "circle-stroke-width": 1.4,
@@ -198,7 +263,7 @@ function ensureObservationLayers(map: MapLibreMap) {
     filter: noPhotoFilter,
     minzoom: 7.2,
     paint: {
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 7.2, 3.5, 9.5, 5.5],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 7.2, 2.8, 9.5, 4.7],
       "circle-color": ["match", ["get", "category"],
         "orage", "#ffd46a",
         "pluie", "#5aaaff",
@@ -212,6 +277,212 @@ function ensureObservationLayers(map: MapLibreMap) {
   });
 }
 
+function removeRainViewerRadarLayers(map: MapLibreMap) {
+  RADAR_SLOTS.forEach((slot) => {
+    const layerId = radarLayerId(slot);
+    if (map.getLayer(layerId)) map.setPaintProperty(layerId, "raster-opacity", 0);
+  });
+}
+
+function removeOperaRadarOverlay(map: MapLibreMap) {
+  OPERA_RADAR_SLOTS.forEach((slot) => {
+    const legacyLayerId = `opera-radar-layer-${slot}`;
+    const legacySourceId = `opera-radar-source-${slot}`;
+    if (map.getLayer(legacyLayerId)) map.removeLayer(legacyLayerId);
+    if (map.getSource(legacySourceId)) map.removeSource(legacySourceId);
+  });
+}
+
+function removeOperaRadarTiles(map: MapLibreMap) {
+  if (map.getLayer(OPERA_DETAIL_LAYER_ID)) map.removeLayer(OPERA_DETAIL_LAYER_ID);
+  if (map.getSource(OPERA_DETAIL_SOURCE_ID)) map.removeSource(OPERA_DETAIL_SOURCE_ID);
+  OPERA_RADAR_SLOTS.forEach((slot) => {
+    const layerId = operaRadarLayerId(slot);
+    const sourceId = operaRadarSourceId(slot);
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+  });
+}
+
+function operaRadarSourceId(slot: RadarSlot) {
+  return `opera-radar-tiles-source-${slot}`;
+}
+
+function operaRadarLayerId(slot: RadarSlot) {
+  return `opera-radar-tiles-layer-${slot}`;
+}
+
+function operaOverviewTemplate(timestamp: string) {
+  return `/api/radar/opera/packs/${encodeURIComponent(timestamp)}/overview/{z}/{x}/{y}`;
+}
+
+function operaDetailTemplate(timestamp: string) {
+  return `/api/radar/opera/packs/${encodeURIComponent(timestamp)}/detail/{z}/{x}/{y}`;
+}
+
+function operaSourceBounds(frame: OperaRadarHistoryFrame): [number, number, number, number] | undefined {
+  const bounds = frame.geographicBounds;
+  if (!bounds) return undefined;
+  return [bounds.west, bounds.south, bounds.east, bounds.north];
+}
+
+function setOperaTileSource(map: MapLibreMap, slot: RadarSlot, frame: OperaRadarHistoryFrame, opacity: number) {
+  const sourceId = operaRadarSourceId(slot);
+  const layerId = operaRadarLayerId(slot);
+  const tiles = [operaOverviewTemplate(frame.timestamp)];
+  const existingSource = map.getSource(sourceId) as unknown as MutableRasterSource | undefined;
+
+  if (existingSource?.setTiles) {
+    existingSource.setTiles(tiles);
+  } else {
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+    map.addSource(sourceId, {
+      type: "raster",
+      tiles,
+      tileSize: 256,
+      // maxzoom 7 + no layer maxzoom: MapLibre overzooms the z7 tiles client-side, so the
+      // overview stays visible (slightly magnified, never holed) at every Atlas zoom.
+      minzoom: OPERA_OVERVIEW_MIN_ZOOM,
+      maxzoom: OPERA_OVERVIEW_MAX_ZOOM,
+      bounds: operaSourceBounds(frame),
+    });
+  }
+  ensureOperaRadarLayer(map, slot, opacity);
+}
+
+function ensureOperaRadarLayer(map: MapLibreMap, slot: RadarSlot, opacity: number) {
+  const layerId = operaRadarLayerId(slot);
+  if (!map.getLayer(layerId)) {
+    // Overview slots always sit below the detail layer, which itself sits below observations.
+    const beforeId = map.getLayer(OPERA_DETAIL_LAYER_ID)
+      ? OPERA_DETAIL_LAYER_ID
+      : map.getLayer(CLUSTER_HALO) ? CLUSTER_HALO : undefined;
+    map.addLayer({
+      id: layerId,
+      type: "raster",
+      source: operaRadarSourceId(slot),
+      paint: {
+        "raster-opacity": opacity,
+        "raster-opacity-transition": { duration: 0, delay: 0 },
+        "raster-fade-duration": 0,
+        "raster-resampling": "linear",
+      },
+    }, beforeId);
+  } else {
+    map.setPaintProperty(layerId, "raster-opacity", opacity);
+  }
+}
+
+function setOperaDetailOpacity(map: MapLibreMap, opacity: number, durationMs = 0) {
+  if (!map.getLayer(OPERA_DETAIL_LAYER_ID)) return;
+  map.setPaintProperty(OPERA_DETAIL_LAYER_ID, "raster-opacity-transition", { duration: durationMs, delay: 0 });
+  map.setPaintProperty(OPERA_DETAIL_LAYER_ID, "raster-opacity", opacity);
+}
+
+function hideOperaDetail(map: MapLibreMap) {
+  setOperaDetailOpacity(map, 0, 0);
+}
+
+function ensureOperaDetailSource(map: MapLibreMap, frame: OperaRadarHistoryFrame, options: { skipSetTiles?: boolean } = {}) {
+  const tiles = [operaDetailTemplate(frame.timestamp)];
+  const existingSource = map.getSource(OPERA_DETAIL_SOURCE_ID) as unknown as MutableRasterSource | undefined;
+
+  if (existingSource?.setTiles) {
+    if (!options.skipSetTiles) existingSource.setTiles(tiles);
+  } else {
+    if (map.getLayer(OPERA_DETAIL_LAYER_ID)) map.removeLayer(OPERA_DETAIL_LAYER_ID);
+    if (map.getSource(OPERA_DETAIL_SOURCE_ID)) map.removeSource(OPERA_DETAIL_SOURCE_ID);
+    map.addSource(OPERA_DETAIL_SOURCE_ID, {
+      type: "raster",
+      tiles,
+      tileSize: 256,
+      minzoom: OPERA_DETAIL_MIN_ZOOM,
+      maxzoom: OPERA_DETAIL_MAX_ZOOM,
+      bounds: operaSourceBounds(frame),
+    });
+  }
+
+  if (!map.getLayer(OPERA_DETAIL_LAYER_ID)) {
+    const beforeId = map.getLayer(CLUSTER_HALO) ? CLUSTER_HALO : undefined;
+    map.addLayer({
+      id: OPERA_DETAIL_LAYER_ID,
+      type: "raster",
+      source: OPERA_DETAIL_SOURCE_ID,
+      paint: {
+        "raster-opacity": 0,
+        "raster-opacity-transition": { duration: 0, delay: 0 },
+        "raster-fade-duration": 0,
+        "raster-resampling": "linear",
+      },
+    }, beforeId);
+  }
+}
+
+function ensureOperaRadarSlot(map: MapLibreMap, slot: RadarSlot, frame: OperaRadarHistoryFrame, opacity: number) {
+  removeOperaRadarOverlay(map);
+  setOperaTileSource(map, slot, frame, opacity);
+}
+
+function setOperaLayerOpacity(map: MapLibreMap, slot: RadarSlot, opacity: number, durationMs = 0) {
+  const layerId = operaRadarLayerId(slot);
+  if (!map.getLayer(layerId)) return;
+  map.setPaintProperty(layerId, "raster-opacity-transition", { duration: durationMs, delay: 0 });
+  map.setPaintProperty(layerId, "raster-opacity", opacity);
+}
+
+function sourceLoaded(map: MapLibreMap, sourceId: string) {
+  try {
+    return map.isSourceLoaded(sourceId);
+  } catch {
+    return false;
+  }
+}
+
+function waitForOperaTileSource(map: MapLibreMap, sourceId: string, urlMarker: string, timeoutMs = OPERA_TILE_LOAD_TIMEOUT_MS) {
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    let sawSourceData = false;
+
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      map.off("sourcedata", onSourceData);
+      map.off("error", onError);
+      resolve(ready);
+    };
+
+    const onSourceData = (event: SourceDataEventLike) => {
+      if (event.sourceId !== sourceId) return;
+      sawSourceData = true;
+      if (event.isSourceLoaded || sourceLoaded(map, sourceId)) finish(true);
+    };
+
+    const onError = (event: MapErrorEventLike) => {
+      const url = event.error?.url ?? "";
+      if (event.sourceId === sourceId || (urlMarker && url.includes(urlMarker))) {
+        console.warn("OPERA tiled radar source failed", event.error?.message ?? event.error);
+        finish(false);
+      }
+    };
+
+    const timeout = window.setTimeout(() => finish(sawSourceData || sourceLoaded(map, sourceId)), timeoutMs);
+    map.on("sourcedata", onSourceData);
+    map.on("error", onError);
+    map.triggerRepaint();
+  });
+}
+
+function uniqueOperaFrames(frames: Array<OperaRadarHistoryFrame | null | undefined>) {
+  const seen = new Set<string>();
+  return frames.filter((frame): frame is OperaRadarHistoryFrame => {
+    if (!frame || seen.has(frame.timestamp)) return false;
+    seen.add(frame.timestamp);
+    return true;
+  }).slice(0, 2);
+}
+
 export default function AtlasMap({
   location,
   observations,
@@ -220,8 +491,13 @@ export default function AtlasMap({
   radarFrameIndex,
   radarHost,
   radarVisible,
+  operaRadarFrame,
+  operaRadarNextFrame,
+  operaRadarTransition,
+  operaPlaybackActive,
   observationLayerVisible,
   onMapReady,
+  onOperaRadarStatus,
   onMapClick,
   onObservationClick,
 }: AtlasMapProps) {
@@ -230,19 +506,154 @@ export default function AtlasMap({
   const markerRefs = useRef<Map<string, ManagedMarker>>(new Map());
   const observationRef = useRef<Map<string, Observation>>(new Map());
   const onMapReadyRef = useRef(onMapReady);
+  const onOperaRadarStatusRef = useRef(onOperaRadarStatus);
   const onMapClickRef = useRef(onMapClick);
   const onObservationClickRef = useRef(onObservationClick);
   const initialLocationRef = useRef(location);
   const activeRadarSlotRef = useRef<RadarSlot>("a");
   const appliedRadarPathRef = useRef<string | null>(null);
   const radarRequestIdRef = useRef(0);
+  const operaRadarActiveRef = useRef(false);
+  const operaRadarTimestampRef = useRef<string | null>(null);
+  const activeOperaSlotRef = useRef<RadarSlot>("a");
+  const appliedOperaFrameRef = useRef<string | null>(null);
+  const appliedOperaTransitionRef = useRef<number | null>(null);
+  const operaTransitionTimerRef = useRef<number | null>(null);
+  const operaTransitionRafRef = useRef<number | null>(null);
+  const operaMoveendPrewarmTimerRef = useRef<number | null>(null);
+  const operaDetailRequestIdRef = useRef(0);
+  const operaDetailTimestampRef = useRef<string | null>(null);
+  const operaDetailShownRef = useRef(false);
+  const radarVisibleRef = useRef(radarVisible);
+  const operaPlaybackActiveRef = useRef(operaPlaybackActive);
   const renderMarkersRef = useRef<() => void>(() => undefined);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => { onMapReadyRef.current = onMapReady; }, [onMapReady]);
+  useEffect(() => { onOperaRadarStatusRef.current = onOperaRadarStatus; }, [onOperaRadarStatus]);
   useEffect(() => { onMapClickRef.current = onMapClick; }, [onMapClick]);
   useEffect(() => { onObservationClickRef.current = onObservationClick; }, [onObservationClick]);
   useEffect(() => { observationRef.current = new Map(observations.map((observation) => [observation.id, observation])); }, [observations]);
+  useEffect(() => { radarVisibleRef.current = radarVisible; }, [radarVisible]);
+  useEffect(() => { operaPlaybackActiveRef.current = operaPlaybackActive; }, [operaPlaybackActive]);
+
+  // Puts the radar back into its base state: overview visible (if the radar is), detail hidden.
+  // This is the only safe state whenever the detail tiles are not known to cover the viewport.
+  const presentOperaOverview = useCallback((currentMap: MapLibreMap) => {
+    operaDetailShownRef.current = false;
+    hideOperaDetail(currentMap);
+    const slot = activeOperaSlotRef.current;
+    if (currentMap.getLayer(operaRadarLayerId(slot))) {
+      setOperaLayerOpacity(
+        currentMap,
+        slot,
+        radarVisibleRef.current && operaRadarActiveRef.current ? OPERA_RADAR_OPACITY : 0,
+        0,
+      );
+    }
+  }, []);
+
+  const presentOperaDetail = useCallback((currentMap: MapLibreMap) => {
+    operaDetailShownRef.current = true;
+    setOperaLayerOpacity(currentMap, activeOperaSlotRef.current, 0, OPERA_DETAIL_HANDOFF_MS);
+    setOperaDetailOpacity(currentMap, OPERA_RADAR_OPACITY, OPERA_DETAIL_HANDOFF_MS);
+  }, []);
+
+  // Background-only sharpening: makes sure the detail tiles (z8..z9) covering the current
+  // viewport (+2 tiles of margin) exist server-side, then switches overview -> detail.
+  // The two layers are never both fully visible, so the radar can never darken from stacked
+  // opacities. It never blocks the map.
+  const updateOperaDetailForMap = useCallback(async (
+    currentMap: MapLibreMap,
+    frame: OperaRadarHistoryFrame,
+    nextFrame: OperaRadarHistoryFrame | null,
+  ) => {
+    const requestId = ++operaDetailRequestIdRef.current;
+
+    // During timeline playback the detail layer stays hidden and NOTHING detail-related runs:
+    // no prewarm POST, no Python, no z8+ tile burst competing with playback fetches.
+    // The sharpening happens when playback pauses on a frame.
+    if (operaPlaybackActiveRef.current) {
+      presentOperaOverview(currentMap);
+      return;
+    }
+
+    if (currentMap.getZoom() < OPERA_DETAIL_MIN_MAP_ZOOM || !radarVisibleRef.current) {
+      presentOperaOverview(currentMap);
+      return;
+    }
+
+    const targets = uniqueOperaFrames([frame, nextFrame]);
+    if (!targets.length) return;
+
+    const bounds = currentMap.getBounds();
+    const detailZoom = Math.max(
+      OPERA_DETAIL_MIN_ZOOM,
+      Math.min(OPERA_DETAIL_MAX_ZOOM, currentMap.getZoom()),
+    );
+
+    const response = await fetch("/api/radar/opera/tiles/prewarm", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        timestamps: targets.map((target) => target.timestamp),
+        viewport: {
+          west: bounds.getWest(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          north: bounds.getNorth(),
+          zoom: detailZoom,
+        },
+        paddingTiles: 2,
+        style: OPERA_TILE_RENDER_VERSION,
+      }),
+    });
+    const payload = await response.json() as OperaPrewarmResponse;
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error ?? `OPERA detail prewarm HTTP ${response.status}.`);
+    }
+    const primary = payload.timestamps.find((item) => item.timestamp === frame.timestamp);
+    if (!primary || primary.requested === 0 || primary.failed > 0) {
+      throw new Error(`OPERA detail tiles are incomplete (${primary?.failed ?? "unknown"} failed).`);
+    }
+
+    // The visible detail tiles are fully available on disk. Only now may the detail layer
+    // switch over — a stale request or an already-changed frame must never touch the map.
+    if (requestId !== operaDetailRequestIdRef.current) return;
+    if (appliedOperaFrameRef.current !== frame.timestamp) return;
+    if (currentMap.getZoom() < OPERA_DETAIL_MIN_MAP_ZOOM || !radarVisibleRef.current) return;
+
+    const sameFrame = operaDetailTimestampRef.current === frame.timestamp;
+    // On a pan within the same scan, MapLibre may have cached 404s for tiles that the prewarm
+    // has just generated; reloading the source (setTiles) makes it pick them up.
+    const needsReload = !sameFrame || primary.generated > 0 || !operaDetailShownRef.current;
+    if (needsReload && operaDetailShownRef.current) {
+      // The detail source is about to reload: hand the display back to the overview first so
+      // the reload can never leave a hole (and never stacks with the incoming detail).
+      presentOperaOverview(currentMap);
+    }
+    ensureOperaDetailSource(currentMap, frame, { skipSetTiles: !needsReload });
+    operaDetailTimestampRef.current = frame.timestamp;
+
+    if (operaDetailShownRef.current) {
+      presentOperaDetail(currentMap);
+      return;
+    }
+
+    const ready = await waitForOperaTileSource(currentMap, OPERA_DETAIL_SOURCE_ID, "/detail/", 1800);
+    if (requestId !== operaDetailRequestIdRef.current) return;
+    if (appliedOperaFrameRef.current !== frame.timestamp) return;
+    if (operaPlaybackActiveRef.current) return;
+    if (!ready || !radarVisibleRef.current || currentMap.getZoom() < OPERA_DETAIL_MIN_MAP_ZOOM) return;
+
+    // Once detail is loaded, it owns the zoomed radar: overview must be fully hidden.
+    setOperaDetailOpacity(currentMap, 0, 0);
+    window.requestAnimationFrame(() => {
+      if (requestId !== operaDetailRequestIdRef.current) return;
+      presentOperaDetail(currentMap);
+    });
+  }, [presentOperaDetail, presentOperaOverview]);
 
   useEffect(() => {
     let alive = true;
@@ -250,9 +661,13 @@ export default function AtlasMap({
       if (!containerRef.current || mapRef.current) return;
       const maplibregl = (await import("maplibre-gl")).default;
       if (!alive || !containerRef.current) return;
+      const maplibreWithImageLimit = maplibregl as typeof maplibregl & { setMaxParallelImageRequests?: (count: number) => void };
+      if (typeof maplibreWithImageLimit.setMaxParallelImageRequests === "function") {
+        maplibreWithImageLimit.setMaxParallelImageRequests(24);
+      }
       const initial = initialLocationRef.current;
       const isInitialLille = Math.abs(initial.lat - 50.6292) < 0.01 && Math.abs(initial.lon - 3.0573) < 0.01;
-      const map = new maplibregl.Map({
+      const mapOptions = {
         container: containerRef.current,
         style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
         center: isInitialLille ? INITIAL_CAMERA.center : [initial.lon, initial.lat],
@@ -264,7 +679,13 @@ export default function AtlasMap({
         maxZoom: 15,
         dragRotate: false,
         renderWorldCopies: false,
-      });
+        maxTileCacheSize: 512,
+        maxTileCacheZoomLevels: 8,
+      } as ConstructorParameters<typeof maplibregl.Map>[0] & {
+        maxTileCacheSize: number;
+        maxTileCacheZoomLevels: number;
+      };
+      const map = new maplibregl.Map(mapOptions);
 
       map.touchZoomRotate.disableRotation();
       map.on("load", () => {
@@ -272,6 +693,9 @@ export default function AtlasMap({
         tuneAtlasBaseMap(map);
         ensureObservationLayers(map);
         mapRef.current = map;
+        if (process.env.NODE_ENV !== "production") {
+          (window as typeof window & { __weyraAtlasMap?: MapLibreMap }).__weyraAtlasMap = map;
+        }
         setMapReady(true);
         onMapReadyRef.current(map);
       });
@@ -301,8 +725,24 @@ export default function AtlasMap({
     void createMap();
     return () => {
       alive = false;
+      if (operaTransitionTimerRef.current !== null) {
+        window.clearTimeout(operaTransitionTimerRef.current);
+        operaTransitionTimerRef.current = null;
+      }
+      if (operaTransitionRafRef.current !== null) {
+        window.cancelAnimationFrame(operaTransitionRafRef.current);
+        operaTransitionRafRef.current = null;
+      }
+      if (operaMoveendPrewarmTimerRef.current !== null) {
+        window.clearTimeout(operaMoveendPrewarmTimerRef.current);
+        operaMoveendPrewarmTimerRef.current = null;
+      }
       markerRefs.current.forEach(({ marker }) => marker.remove());
       markerRefs.current.clear();
+      if (mapRef.current) {
+        removeOperaRadarTiles(mapRef.current);
+        removeOperaRadarOverlay(mapRef.current);
+      }
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -317,6 +757,10 @@ export default function AtlasMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    if (operaRadarActiveRef.current) {
+      removeRainViewerRadarLayers(map);
+      return;
+    }
     const frame = radarFrames[radarFrameIndex];
     if (!frame || !radarHost) return;
     const url = radarUrl(radarHost, frame.path);
@@ -366,7 +810,7 @@ export default function AtlasMap({
 
     const next: RadarSlot = active === "a" ? "b" : "a";
     const nextSource = map.getSource(radarSourceId(next)) as unknown as MutableRasterSource | undefined;
-    if (!nextSource) return;
+    if (!nextSource?.setTiles) return;
     nextSource.setTiles([url]);
 
     const promote = () => {
@@ -386,6 +830,222 @@ export default function AtlasMap({
     const fallback = window.setTimeout(() => { map.off("sourcedata", ready); promote(); }, 1050);
     return () => { window.clearTimeout(fallback); map.off("sourcedata", ready); };
   }, [mapReady, radarFrames, radarFrameIndex, radarHost, radarVisible]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !operaRadarFrame) return;
+    const currentMap = map;
+    const frame = operaRadarFrame;
+    const nextFrame = operaRadarNextFrame;
+    let cancelled = false;
+
+    if (appliedOperaFrameRef.current === frame.timestamp && operaRadarActiveRef.current) {
+      // Same scan already on screen: only the optional detail sharpening may need a refresh.
+      void updateOperaDetailForMap(currentMap, frame, nextFrame).catch((error) => {
+        console.debug("OPERA detail refresh skipped", error);
+      });
+      return;
+    }
+
+    if (operaTransitionTimerRef.current !== null) {
+      window.clearTimeout(operaTransitionTimerRef.current);
+      operaTransitionTimerRef.current = null;
+    }
+    if (operaTransitionRafRef.current !== null) {
+      window.cancelAnimationFrame(operaTransitionRafRef.current);
+      operaTransitionRafRef.current = null;
+    }
+
+    // The scan pack is published: its overview tiles are plain static files. The radar is shown
+    // immediately from those tiles — no POST, no generation, nothing to wait for but the GETs.
+    async function applyOperaOverview() {
+      // Back to the overview-first state: the old detail must never stay visible (or stack)
+      // while another scan is being installed.
+      presentOperaOverview(currentMap);
+      operaDetailTimestampRef.current = null;
+
+      // Load the new scan into the slot that is not currently visible, so switching scans
+      // never blanks the radar while tiles arrive.
+      const previousSlot = activeOperaSlotRef.current;
+      const targetSlot: RadarSlot = operaRadarActiveRef.current ? (previousSlot === "a" ? "b" : "a") : "a";
+      ensureOperaRadarSlot(currentMap, targetSlot, frame, 0);
+      removeRainViewerRadarLayers(currentMap);
+
+      const ready = await waitForOperaTileSource(currentMap, operaRadarSourceId(targetSlot), "/overview/");
+      if (cancelled) return;
+
+      if (!ready) {
+        console.warn("OPERA scan pack overview failed to load", frame.timestamp);
+        operaRadarActiveRef.current = false;
+        setOperaLayerOpacity(currentMap, targetSlot, 0, 0);
+        onOperaRadarStatusRef.current({
+          available: false,
+          timestamp: null,
+          historyStatus: "unavailable",
+          error: "Radar scan pack failed to load.",
+        });
+        return;
+      }
+
+      setOperaLayerOpacity(currentMap, targetSlot, radarVisible ? OPERA_RADAR_OPACITY : 0, 0);
+      if (targetSlot !== previousSlot && currentMap.getLayer(operaRadarLayerId(previousSlot))) {
+        setOperaLayerOpacity(currentMap, previousSlot, 0, 0);
+      }
+      activeOperaSlotRef.current = targetSlot;
+      appliedOperaFrameRef.current = frame.timestamp;
+      operaRadarActiveRef.current = true;
+      operaRadarTimestampRef.current = frame.timestamp;
+      onOperaRadarStatusRef.current({ available: true, timestamp: frame.timestamp, historyStatus: "ready" });
+
+      void updateOperaDetailForMap(currentMap, frame, nextFrame).catch((error) => {
+        console.debug("OPERA detail preparation skipped", error);
+      });
+    }
+
+    void applyOperaOverview();
+    return () => { cancelled = true; };
+    // operaPlaybackActive is a dependency so that pausing playback re-runs the cheap same-frame
+    // branch, which un-freezes the detail sharpening for the frame the user stopped on.
+  }, [mapReady, operaRadarFrame, operaRadarNextFrame, operaPlaybackActive, presentOperaOverview, updateOperaDetailForMap, radarVisible]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !operaRadarTransition) return;
+    if (appliedOperaTransitionRef.current === operaRadarTransition.id) return;
+    const currentMap = map;
+    const transition = operaRadarTransition;
+
+    appliedOperaTransitionRef.current = transition.id;
+
+    if (operaTransitionTimerRef.current !== null) {
+      window.clearTimeout(operaTransitionTimerRef.current);
+      operaTransitionTimerRef.current = null;
+    }
+    if (operaTransitionRafRef.current !== null) {
+      window.cancelAnimationFrame(operaTransitionRafRef.current);
+      operaTransitionRafRef.current = null;
+    }
+
+    const activeSlot = activeOperaSlotRef.current;
+    const inactiveSlot: RadarSlot = activeSlot === "a" ? "b" : "a";
+    const duration = operaRadarTransition.durationMs;
+    const targetOpacity = radarVisible ? OPERA_RADAR_OPACITY : 0;
+    let cancelled = false;
+
+    async function runTransition() {
+      // The main crossfade only involves the two already-published overview packs. The detail
+      // of the outgoing scan is handed back to the overview instantly — it never delays the
+      // animation, never stacks with it, and no partial tile block can appear mid-fade.
+      presentOperaOverview(currentMap);
+      operaDetailTimestampRef.current = null;
+
+      ensureOperaRadarSlot(currentMap, inactiveSlot, transition.toFrame, 0);
+      removeRainViewerRadarLayers(currentMap);
+      operaRadarActiveRef.current = true;
+
+      const ready = await waitForOperaTileSource(currentMap, operaRadarSourceId(inactiveSlot), "/overview/");
+      if (cancelled) return;
+
+      if (!ready) {
+        console.warn("OPERA tiled radar transition skipped; next source failed to load", transition.toFrame.timestamp);
+        setOperaLayerOpacity(currentMap, inactiveSlot, 0, 0);
+        setOperaLayerOpacity(currentMap, activeSlot, radarVisible ? OPERA_RADAR_OPACITY : 0, 0);
+        onOperaRadarStatusRef.current({
+          available: true,
+          timestamp: operaRadarTimestampRef.current,
+          historyStatus: "ready",
+          error: "Next tiled radar frame failed to load.",
+        });
+        return;
+      }
+
+      if (duration <= 0 || !radarVisible) {
+        setOperaLayerOpacity(currentMap, activeSlot, 0, 0);
+        setOperaLayerOpacity(currentMap, inactiveSlot, targetOpacity, 0);
+        activeOperaSlotRef.current = inactiveSlot;
+        appliedOperaFrameRef.current = transition.toFrame.timestamp;
+        operaRadarTimestampRef.current = transition.toFrame.timestamp;
+        return;
+      }
+
+      setOperaLayerOpacity(currentMap, inactiveSlot, 0, 0);
+      setOperaLayerOpacity(currentMap, activeSlot, OPERA_RADAR_OPACITY, 0);
+
+      operaTransitionRafRef.current = window.requestAnimationFrame(() => {
+        setOperaLayerOpacity(currentMap, activeSlot, 0, duration);
+        setOperaLayerOpacity(currentMap, inactiveSlot, OPERA_RADAR_OPACITY, duration);
+        operaTransitionRafRef.current = null;
+      });
+
+      operaTransitionTimerRef.current = window.setTimeout(() => {
+        activeOperaSlotRef.current = inactiveSlot;
+        appliedOperaFrameRef.current = transition.toFrame.timestamp;
+        operaRadarTimestampRef.current = transition.toFrame.timestamp;
+        setOperaLayerOpacity(currentMap, activeSlot, 0, 0);
+        setOperaLayerOpacity(currentMap, inactiveSlot, radarVisible ? OPERA_RADAR_OPACITY : 0, 0);
+        operaTransitionTimerRef.current = null;
+      }, duration + 40);
+    }
+
+    void runTransition();
+    return () => { cancelled = true; };
+  }, [mapReady, operaRadarTransition, presentOperaOverview, radarVisible]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const activeSlot = activeOperaSlotRef.current;
+    const inactiveSlot: RadarSlot = activeSlot === "a" ? "b" : "a";
+    if (map.getLayer(operaRadarLayerId(activeSlot))) {
+      setOperaLayerOpacity(map, activeSlot, radarVisible && operaRadarActiveRef.current ? OPERA_RADAR_OPACITY : 0, 0);
+    }
+    if (map.getLayer(operaRadarLayerId(inactiveSlot))) {
+      setOperaLayerOpacity(map, inactiveSlot, 0, 0);
+    }
+    // Toggling the radar always resets to the overview-first state; the detail handoff
+    // re-runs afterwards through the frame effect when the radar is visible again.
+    operaDetailShownRef.current = false;
+    hideOperaDetail(map);
+    if (operaRadarActiveRef.current) removeRainViewerRadarLayers(map);
+  }, [mapReady, radarVisible]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !operaRadarFrame) return;
+
+    // After a pan/zoom the overview keeps covering the viewport by itself (static tiles plus
+    // client-side overzoom). Only the optional detail sharpening is refreshed, debounced.
+    const scheduleDetailUpdate = () => {
+      if (operaMoveendPrewarmTimerRef.current !== null) {
+        window.clearTimeout(operaMoveendPrewarmTimerRef.current);
+      }
+      operaMoveendPrewarmTimerRef.current = window.setTimeout(() => {
+        operaMoveendPrewarmTimerRef.current = null;
+        void updateOperaDetailForMap(map, operaRadarFrame, operaRadarNextFrame).catch((error) => {
+          console.debug("OPERA moveend detail update skipped", error);
+        });
+      }, 250);
+    };
+
+    // A camera move can expose areas the detail tiles do not cover yet: the overview (always
+    // complete) takes the display back instantly, and the detail handoff re-runs for the new
+    // viewport once its tiles are confirmed ready.
+    const onMoveStart = () => {
+      operaDetailRequestIdRef.current += 1;
+      if (operaDetailShownRef.current) presentOperaOverview(map);
+    };
+
+    map.on("movestart", onMoveStart);
+    map.on("moveend", scheduleDetailUpdate);
+    return () => {
+      if (operaMoveendPrewarmTimerRef.current !== null) {
+        window.clearTimeout(operaMoveendPrewarmTimerRef.current);
+        operaMoveendPrewarmTimerRef.current = null;
+      }
+      map.off("movestart", onMoveStart);
+      map.off("moveend", scheduleDetailUpdate);
+    };
+  }, [mapReady, operaRadarFrame, operaRadarNextFrame, presentOperaOverview, updateOperaDetailForMap]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -428,7 +1088,7 @@ export default function AtlasMap({
         const bounds = currentMap.getBounds();
         const acceptedPoints: Array<{ x: number; y: number }> = [];
         const candidates = observations
-          .filter((observation) => Boolean(observation.imageUrl && !observation.isSeed && bounds.contains([observation.lon, observation.lat]) && zoom >= 8.25))
+          .filter((observation) => Boolean(observation.imageUrl && bounds.contains([observation.lon, observation.lat]) && zoom >= 8.25))
           .sort((a, b) => {
             if (a.id === selectedObservationId) return -1;
             if (b.id === selectedObservationId) return 1;
@@ -455,7 +1115,7 @@ export default function AtlasMap({
           element.type = "button";
           element.className = `atlas-photo-marker${selectedObservationId === observation.id ? " atlas-photo-marker--selected" : ""}`;
           element.style.setProperty("--marker-color", category.color);
-          element.innerHTML = `<span class="atlas-photo-marker__image" style="background-image:url('${escapeAttribute(observation.imageUrl ?? "")}')"></span><span class="atlas-photo-marker__kind">${category.icon}</span><span class="atlas-photo-marker__age">${escapeAttribute(timeAgo(observation.createdAt))}</span>`;
+          element.innerHTML = `<span class="atlas-photo-marker__image" style="background-image:url('${escapeAttribute(observation.imageUrl ?? "")}')"></span><span class="atlas-photo-marker__age">${escapeAttribute(timeAgo(observation.createdAt))}</span>`;
           element.addEventListener("click", (event) => {
             event.stopPropagation();
             const newest = observationRef.current.get(observation.id) ?? observation;

@@ -14,8 +14,15 @@ function statusFromResult(ok: boolean, sourceStatus: number | null) {
 
 export async function GET() {
   const result = await getLatestOperaComposite();
+  const publicResult = {
+    ...result,
+    dataLinks: result.dataLinks.map(({ href: _href, ...link }) => ({
+      ...link,
+      href: "server-only",
+    })),
+  };
 
-  return NextResponse.json(result, {
+  return NextResponse.json(publicResult, {
     status: statusFromResult(result.ok, result.sourceStatus.status),
     headers: {
       "Cache-Control": "no-store, max-age=0",

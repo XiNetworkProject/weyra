@@ -48,14 +48,22 @@ export async function loadObservations(): Promise<Observation[]> {
 
   if (!supabase) return [...local, ...seededObservations()];
 
-  const { data, error } = await supabase
-    .from("observations")
-    .select("id,nickname,category,intensity,details,image_url,lat,lng,likes,place,created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  // A slow or unreachable Supabase project must not leave the map empty (or the app stuck loading):
+  // fall back to local + seeded observations after a bounded wait.
+  try {
+    const { data, error } = await supabase
+      .from("observations")
+      .select("id,nickname,category,intensity,details,image_url,lat,lng,likes,place,created_at")
+      .order("created_at", { ascending: false })
+      .limit(200)
+      .abortSignal(AbortSignal.timeout(8_000));
 
-  if (error) throw error;
-  return [...(data ?? []).map(fromDatabase), ...seededObservations()];
+    if (error) throw error;
+    return [...(data ?? []).map(fromDatabase), ...seededObservations()];
+  } catch (error) {
+    console.warn("Supabase observations unavailable, using local data.", error);
+    return [...local, ...seededObservations()];
+  }
 }
 
 export async function createObservation(observation: Observation) {

@@ -39,7 +39,8 @@ export async function fetchWeather(location: LocationSelection): Promise<Weather
     timezone: "auto",
   });
 
-  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+  // A hung request must never block the UI: the initial loading overlay waits on this promise.
+  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { signal: AbortSignal.timeout(9_000) });
   if (!response.ok) throw new Error("Open-Meteo is unavailable");
   const json = await response.json();
   const current = json.current;
@@ -60,7 +61,7 @@ export async function fetchWeather(location: LocationSelection): Promise<Weather
 export async function searchLocations(query: string): Promise<LocationSelection[]> {
   if (query.trim().length < 3) return [];
   const params = new URLSearchParams({ name: query.trim(), count: "6", language: "fr", format: "json" });
-  const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`);
+  const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`, { signal: AbortSignal.timeout(9_000) });
   if (!response.ok) return [];
   const json = await response.json();
 

@@ -36,3 +36,28 @@ Données radar Météo-France 5 min + cache/tiles Weyra
 ```
 
 Le client Atlas ne connaît jamais la clé Météo-France.
+
+## Scan packs radar OPERA (S4 Radar Foundation)
+
+Chaque scan OPERA prêt est publié sous forme de **scan pack** statique :
+
+```text
+.radar-cache/packs/v1/<timestamp>/
+  manifest.json        # status "ready" uniquement si TOUTES les tuiles overview existent
+  overview/{z}/{x}/{y}.webp   # z3..z7, emprise OPERA Europe, palette V3b
+  detail/                     # les tuiles detail (z8..z11) restent dans le cache tuiles partagé
+```
+
+- Publication **atomique** : génération dans `packs/v1/.building/…`, validation de chaque tuile,
+  écriture du manifest, puis `rename` vers le dossier final. Atlas ne voit jamais un pack partiel.
+- Routes de lecture pure (`/api/radar/opera/packs/...`) : zéro Python, zéro rasterio, zéro HDF5,
+  zéro MeteoGate, `Cache-Control: immutable`. Une tuile detail absente répond 404 immédiatement.
+- `ensureRadarScanPacks()` (lib/server/opera-packs.ts) détecte les scans, construit les packs
+  manquants (max 2 process Python, source-grid ouvert une fois par scan), conserve les
+  `WEYRA_RADAR_MAX_PACKS` (16) packs les plus récents.
+
+**Local** : appelé au démarrage serveur (`instrumentation.ts`) et via
+`POST /api/radar/opera/packs/maintenance`.
+
+**PRODUCTION** : ce mécanisme doit tourner dans un **worker/cron permanent** (toutes les 1 à
+2 minutes), jamais déclenché par le navigateur.

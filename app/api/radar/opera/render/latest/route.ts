@@ -1,14 +1,17 @@
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
-import { renderLatestOperaFrame } from "@/lib/server/opera-render";
+import { getCachedRenderedOperaFrame, renderLatestOperaFrame } from "@/lib/server/opera-render";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const frame = await renderLatestOperaFrame();
+    const url = new URL(request.url);
+    const timestamp = url.searchParams.get("ts");
+    const cachedFrame = timestamp ? await getCachedRenderedOperaFrame(timestamp) : null;
+    const frame = cachedFrame ?? await renderLatestOperaFrame();
     const image = await readFile(frame.imagePath);
 
     return new Response(new Uint8Array(image), {

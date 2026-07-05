@@ -40,6 +40,30 @@ export type OperaCompositeResult = {
   error: string | null;
 };
 
+export type RecentOperaComposite = {
+  timestamp: string;
+  provider: "EUMETNET OPERA";
+  product: "DBZH";
+  method: "comp";
+  format: "ODIM HDF5";
+  internalDataLink: MeteoGateDataLink;
+  sourceStatus: OperaCompositeResult["sourceStatus"];
+};
+
+export type RecentOperaCompositeResult = {
+  ok: boolean;
+  provider: "EUMETNET OPERA";
+  product: "DBZH";
+  method: "comp";
+  format: "ODIM HDF5";
+  requestedCount: number;
+  availableCount: number;
+  frames: RecentOperaComposite[];
+  rateLimitRemaining: string | null;
+  sourceStatus: OperaCompositeResult["sourceStatus"];
+  error: string | null;
+};
+
 class MeteoGateConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -70,11 +94,11 @@ function toResponseIso(date: Date) {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-function buildOperaWindow(now = new Date()): TimeWindow {
+function buildOperaWindow(now = new Date(), lookbackMinutes = 45): TimeWindow {
   const roundedNow = new Date(now);
   roundedNow.setUTCSeconds(0, 0);
 
-  const start = new Date(roundedNow.getTime() - 45 * 60 * 1000);
+  const start = new Date(roundedNow.getTime() - lookbackMinutes * 60 * 1000);
   const end = new Date(roundedNow.getTime() + 5 * 60 * 1000);
 
   return {
@@ -124,6 +148,21 @@ function buildLatestOperaPath(window: TimeWindow) {
   });
 
   return `/collections/observations/locations/${OPERA_LOCATION_ID}?${params.toString()}`;
+}
+
+function buildSourceStatus(
+  window: TimeWindow,
+  response: Response,
+): OperaCompositeResult["sourceStatus"] {
+  return {
+    status: response.status,
+    statusText: response.statusText || null,
+    contentType: response.headers.get("content-type"),
+    date: response.headers.get("date"),
+    locationId: OPERA_LOCATION_ID,
+    windowStart: window.startIso,
+    windowEnd: window.endIso,
+  };
 }
 
 export async function meteoGateFetch(path: string) {
@@ -219,6 +258,29 @@ function isLikelyDataLink(link: MeteoGateDataLink, sourcePath: string) {
   if (descriptor.includes("observations/locations")) return true;
 
   return false;
+}
+
+function isUsableHdf5DataLink(link: MeteoGateDataLink) {
+  if (link.fileType !== "ODIM HDF5") return false;
+
+  const rel = link.rel?.toLowerCase();
+  if (rel && ["self", "root", "service-desc", "service-doc", "conformance", "collection"].includes(rel)) {
+    return false;
+  }
+
+  const descriptor = [
+    link.href,
+    link.rel,
+    link.title,
+    link.type,
+    link.format,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (descriptor.includes("service-desc") || descriptor.includes("service-doc")) return false;
+  if (descriptor.includes("metadata-only") || descriptor.includes("metadata only")) return false;
+  if (descriptor.includes("application/json")) return false;
+
+  return true;
 }
 
 function extractDataLinks(payload: unknown) {
@@ -371,6 +433,42 @@ function markLatestLinks(links: MeteoGateDataLink[], latestTimestamp: string | n
   });
 }
 
+function withinWindow(timestamp: string, window: TimeWindow) {
+  const date = new Date(timestamp);
+  const time = date.getTime();
+  return !Number.isNaN(time) && time >= window.start.getTime() && time <= window.end.getTime();
+}
+
+function toRecentFrames(
+  links: MeteoGateDataLink[],
+  sourceStatus: OperaCompositeResult["sourceStatus"],
+  window: TimeWindow,
+  count: number,
+) {
+  const byTimestamp = new Map<string, RecentOperaComposite>();
+
+  for (const link of links) {
+    if (!isUsableHdf5DataLink(link) || !link.timestamp || !withinWindow(link.timestamp, window)) continue;
+
+    const existing = byTimestamp.get(link.timestamp);
+    if (existing && existing.internalDataLink.href.length <= link.href.length) continue;
+
+    byTimestamp.set(link.timestamp, {
+      timestamp: link.timestamp,
+      provider: "EUMETNET OPERA",
+      product: PRODUCT,
+      method: METHOD,
+      format: "ODIM HDF5",
+      internalDataLink: link,
+      sourceStatus,
+    });
+  }
+
+  return [...byTimestamp.values()]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .slice(-count);
+}
+
 export async function getLatestOperaComposite(now = new Date()): Promise<OperaCompositeResult> {
   const window = buildOperaWindow(now);
   const path = buildLatestOperaPath(window);
@@ -379,16 +477,7 @@ export async function getLatestOperaComposite(now = new Date()): Promise<OperaCo
     const response = await meteoGateFetch(path);
     const rateLimitRemaining = response.headers.get("x-ratelimit-remaining");
     const contentType = response.headers.get("content-type");
-    const responseDate = response.headers.get("date");
-    const sourceStatus = {
-      status: response.status,
-      statusText: response.statusText || null,
-      contentType,
-      date: responseDate,
-      locationId: OPERA_LOCATION_ID,
-      windowStart: window.startIso,
-      windowEnd: window.endIso,
-    };
+    const sourceStatus = buildSourceStatus(window, response);
 
     if (response.status === 204) {
       return emptyResult(window, {
@@ -439,6 +528,112 @@ export async function getLatestOperaComposite(now = new Date()): Promise<OperaCo
       : "MeteoGate request failed before a usable response was received.";
 
     return emptyResult(window, {
+      sourceStatus: {
+        status: null,
+        statusText: error instanceof MeteoGateConfigError ? "missing-api-key" : "request-failed",
+        contentType: null,
+        date: null,
+        locationId: OPERA_LOCATION_ID,
+        windowStart: window.startIso,
+        windowEnd: window.endIso,
+      },
+      error: message,
+    });
+  }
+}
+
+export async function getRecentOperaComposites(options: {
+  count?: number;
+  lookbackMinutes?: number;
+} = {}): Promise<RecentOperaCompositeResult> {
+  const requestedCount = Math.min(Math.max(Math.trunc(options.count ?? 12), 1), 24);
+  const lookbackMinutes = Math.max(options.lookbackMinutes ?? 100, 15);
+  const window = buildOperaWindow(new Date(), lookbackMinutes);
+  const path = buildLatestOperaPath(window);
+
+  const empty = (
+    overrides: Partial<RecentOperaCompositeResult>,
+  ): RecentOperaCompositeResult => {
+    const sourceStatus: OperaCompositeResult["sourceStatus"] = {
+      status: null,
+      statusText: null,
+      contentType: null,
+      date: null,
+      locationId: OPERA_LOCATION_ID,
+      windowStart: window.startIso,
+      windowEnd: window.endIso,
+      ...overrides.sourceStatus,
+    };
+
+    return {
+      ok: false,
+      provider: "EUMETNET OPERA",
+      product: PRODUCT,
+      method: METHOD,
+      format: "ODIM HDF5",
+      requestedCount,
+      availableCount: 0,
+      frames: [],
+      rateLimitRemaining: null,
+      error: null,
+      ...overrides,
+      sourceStatus,
+    };
+  };
+
+  try {
+    const response = await meteoGateFetch(path);
+    const rateLimitRemaining = response.headers.get("x-ratelimit-remaining");
+    const contentType = response.headers.get("content-type");
+    const sourceStatus = buildSourceStatus(window, response);
+
+    if (response.status === 204) {
+      return empty({
+        rateLimitRemaining,
+        sourceStatus,
+        error: `MeteoGate returned no OPERA DBZH composite for the requested ${lookbackMinutes}-minute window.`,
+      });
+    }
+
+    if (!response.ok) {
+      return empty({
+        rateLimitRemaining,
+        sourceStatus,
+        error: `MeteoGate returned ${response.status}${response.statusText ? ` ${response.statusText}` : ""}.`,
+      });
+    }
+
+    if (!contentType?.toLowerCase().includes("json")) {
+      return empty({
+        rateLimitRemaining,
+        sourceStatus,
+        error: `MeteoGate returned an unexpected content type: ${contentType ?? "unknown"}.`,
+      });
+    }
+
+    const payload = await response.json() as unknown;
+    const dataLinks = extractDataLinks(payload);
+    const frames = toRecentFrames(dataLinks, sourceStatus, window, requestedCount);
+
+    return {
+      ok: frames.length > 0,
+      provider: "EUMETNET OPERA",
+      product: PRODUCT,
+      method: METHOD,
+      format: "ODIM HDF5",
+      requestedCount,
+      availableCount: frames.length,
+      frames,
+      rateLimitRemaining,
+      sourceStatus,
+      error: frames.length > 0 ? null : "No recent OPERA DBZH ODIM HDF5 frames were found in the MeteoGate response.",
+    };
+  } catch (error) {
+    const message = error instanceof MeteoGateConfigError
+      ? error.message
+      : "MeteoGate recent frame request failed before a usable response was received.";
+
+    return empty({
       sourceStatus: {
         status: null,
         statusText: error instanceof MeteoGateConfigError ? "missing-api-key" : "request-failed",

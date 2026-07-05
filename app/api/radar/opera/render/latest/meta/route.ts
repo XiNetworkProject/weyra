@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { renderLatestOperaFrame } from "@/lib/server/opera-render";
+import { getLatestRenderedOperaMeta } from "@/lib/server/opera-render";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,19 +7,9 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    const frame = await renderLatestOperaFrame();
+    const meta = await getLatestRenderedOperaMeta();
 
-    return NextResponse.json({
-      ok: true,
-      provider: "EUMETNET OPERA",
-      product: "DBZH",
-      timestamp: frame.metadata.timestamp ?? frame.timestamp,
-      image: {
-        contentType: "image/webp",
-        route: "/api/radar/opera/render/latest",
-      },
-      metadata: frame.metadata,
-    }, {
+    return NextResponse.json(meta, {
       headers: {
         "Cache-Control": "no-store, max-age=0",
       },
