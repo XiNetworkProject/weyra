@@ -9,3 +9,5 @@ __pycache__
 *.pyc
 tsconfig.tsbuildinfo
 .radar-cache
+artifacts/
+.claude/

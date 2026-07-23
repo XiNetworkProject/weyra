@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       timestamps,
       viewport,
       paddingTiles: typeof body.paddingTiles === "number" ? body.paddingTiles : 1,
-      style: typeof body.style === "string" ? body.style : "v3c",
+      style: typeof body.style === "string" ? body.style : "v4a",
     });
 
     // The pack detail route serves only files that already sit in the pack directory, so the
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     const status = error instanceof OperaTileError ? error.statusCode : 500;
     return NextResponse.json({
       ok: false,
-      style: "v3c",
+      style: "v4a",
       timestamps: [],
       error: sanitizePrewarmError(error),
     }, {

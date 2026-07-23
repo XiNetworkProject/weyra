@@ -1,3 +1,13 @@
+import {
+  IconCloud,
+  IconCloudDrizzle,
+  IconCloudFog,
+  IconCloudLightning,
+  IconCloudRain,
+  IconCloudSnow,
+  IconCloudSun,
+  IconSun,
+} from "@/components/atlas/icons";
 import type { LocationSelection, WeatherSnapshot } from "@/lib/types";
 
 export const WEATHER_CODES: Record<number, { label: string; icon: string }> = {
@@ -30,12 +40,41 @@ export function weatherCodeInfo(code: number) {
   return WEATHER_CODES[code] ?? { label: "Conditions variables", icon: "🌦️" };
 }
 
+// Clean SVG icon per WMO code group, used instead of the emoji above for the main weather card.
+export function weatherCodeIcon(code: number) {
+  if (code === 0) return IconSun;
+  if (code === 1 || code === 2) return IconCloudSun;
+  if (code === 3) return IconCloud;
+  if (code === 45 || code === 48) return IconCloudFog;
+  if (code === 71 || code === 73 || code === 75 || code === 85 || code === 86) return IconCloudSnow;
+  if (code === 95 || code === 96 || code === 99) return IconCloudLightning;
+  if (code === 65 || code === 82) return IconCloudRain;
+  if ([51, 53, 55, 61, 63, 80, 81].includes(code)) return IconCloudDrizzle;
+  return IconCloud;
+}
+
+export function convertTemperature(value: number, unit: "celsius" | "fahrenheit") {
+  return unit === "fahrenheit" ? (value * 9) / 5 + 32 : value;
+}
+
+export function temperatureUnitLabel(unit: "celsius" | "fahrenheit") {
+  return unit === "fahrenheit" ? "°F" : "°";
+}
+
+export function convertWindSpeed(valueKmh: number, unit: "kmh" | "ms") {
+  return unit === "ms" ? valueKmh / 3.6 : valueKmh;
+}
+
+export function windUnitLabel(unit: "kmh" | "ms") {
+  return unit === "ms" ? "m/s" : "km/h";
+}
+
 export async function fetchWeather(location: LocationSelection): Promise<WeatherSnapshot> {
   const params = new URLSearchParams({
     latitude: String(location.lat),
     longitude: String(location.lon),
     current:
-      "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure",
+      "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,relative_humidity_2m,surface_pressure",
     timezone: "auto",
   });
 
@@ -53,6 +92,7 @@ export async function fetchWeather(location: LocationSelection): Promise<Weather
     windSpeed: current.wind_speed_10m,
     windDirection: current.wind_direction_10m,
     windGusts: current.wind_gusts_10m,
+    humidity: current.relative_humidity_2m,
     pressure: current.surface_pressure,
     observedAt: current.time,
   };

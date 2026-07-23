@@ -17,7 +17,7 @@ import {
 } from "@/lib/server/opera-render";
 
 // Scan packs: pre-published, fully static radar tile sets. A pack becomes "ready" only once
-// every required overview tile (z3..z7 over the OPERA Europe extent) exists on disk, so Atlas
+// every required overview tile (z3..z6 over the OPERA Europe extent) exists on disk, so Atlas
 // can always paint the radar instantly from static files — no Python, no MeteoGate on any GET.
 //
 // PRODUCTION NOTE: ensureRadarScanPacks() must run in a permanent worker/cron (every 1-2 min).
@@ -25,14 +25,14 @@ import {
 
 const RADAR_CACHE_ROOT = path.join(process.cwd(), ".radar-cache");
 const FRAMES_DIR = path.join(RADAR_CACHE_ROOT, "frames");
-export const PACKS_VERSION = "v1";
+export const PACKS_VERSION = "v3";
 const PACKS_ROOT = path.join(RADAR_CACHE_ROOT, "packs", PACKS_VERSION);
 const BUILDING_DIR_NAME = ".building";
 const BUILDING_ROOT = path.join(PACKS_ROOT, BUILDING_DIR_NAME);
 
 export const PACK_STYLE = TILE_RENDER_VERSION;
 export const PACK_OVERVIEW_ZOOM_MIN = 3;
-export const PACK_OVERVIEW_ZOOM_MAX = 7;
+export const PACK_OVERVIEW_ZOOM_MAX = 6;
 export const PACK_DETAIL_ZOOM_MIN = 8;
 export const PACK_DETAIL_ZOOM_MAX = 11;
 export const PACK_TILE_SIZE = 256;
@@ -74,18 +74,30 @@ export type ScanPackMaintenanceSnapshot = {
   note: string;
 };
 
-const buildInFlight = new Map<string, Promise<ScanPackManifest | null>>();
-let maintenanceTask: Promise<void> | null = null;
-let maintenanceSnapshot: ScanPackMaintenanceSnapshot = {
-  running: false,
-  startedAt: null,
-  finishedAt: null,
-  scansDetected: 0,
-  packsReady: 0,
-  building: [],
-  errors: [],
-  note: "En production, ce mécanisme doit tourner dans un worker/cron permanent.",
+type OperaPackRuntimeState = {
+  buildInFlight: Map<string, Promise<ScanPackManifest | null>>;
+  maintenanceTask: Promise<void> | null;
+  maintenanceSnapshot: ScanPackMaintenanceSnapshot;
 };
+
+const globalForOperaPacks = globalThis as typeof globalThis & {
+  __weyraOperaPackRuntime?: OperaPackRuntimeState;
+};
+const runtimeState = globalForOperaPacks.__weyraOperaPackRuntime ??= {
+  buildInFlight: new Map<string, Promise<ScanPackManifest | null>>(),
+  maintenanceTask: null,
+  maintenanceSnapshot: {
+    running: false,
+    startedAt: null,
+    finishedAt: null,
+    scansDetected: 0,
+    packsReady: 0,
+    building: [],
+    errors: [],
+    note: "En production, ce mécanisme doit tourner dans un worker/cron permanent.",
+  },
+};
+const buildInFlight = runtimeState.buildInFlight;
 
 function readPositiveIntEnv(name: string, fallback: number) {
   const parsed = Number(process.env[name]);
@@ -113,7 +125,7 @@ export function packDetailTilePath(timestamp: string, z: number, x: number, y: n
 }
 
 // Files prewarmed for a viewport are mirrored into their scan pack
-// (packs/v1/<timestamp>/detail/<z>/<x>/<y>.webp), so the pack directory carries the full radar
+// (packs/v3/<timestamp>/detail/<z>/<x>/<y>.webp), so the pack directory carries the full radar
 // payload of its scan and detail GETs are plain static reads. Hardlink when the filesystem
 // allows it, plain copy otherwise. Best-effort: a mirror failure never fails the prewarm.
 export async function mirrorPrewarmedDetailTilesIntoPacks(result: OperaTilePrewarmResult): Promise<void> {
@@ -169,15 +181,13 @@ export async function getScanPackManifest(timestamp: string): Promise<ScanPackMa
 export async function listScanPacks(): Promise<ScanPackManifest[]> {
   try {
     const entries = await readdir(PACKS_ROOT, { withFileTypes: true });
-    const manifests: ScanPackManifest[] = [];
+    const manifests = await Promise.all(entries
+      .filter((entry) => entry.isDirectory() && entry.name !== BUILDING_DIR_NAME)
+      .map((entry) => readManifestFile(path.join(PACKS_ROOT, entry.name, "manifest.json"))));
 
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name === BUILDING_DIR_NAME) continue;
-      const manifest = await readManifestFile(path.join(PACKS_ROOT, entry.name, "manifest.json"));
-      if (manifest) manifests.push(manifest);
-    }
-
-    return manifests.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return manifests
+      .filter((manifest): manifest is ScanPackManifest => manifest !== null)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   } catch {
     return [];
   }
@@ -185,7 +195,13 @@ export async function listScanPacks(): Promise<ScanPackManifest[]> {
 
 export async function listReadyScanPacks(): Promise<ScanPackManifest[]> {
   const packs = await listScanPacks();
-  return packs.filter((pack) => pack.status === "ready" && pack.baseTileCount > 0 && pack.coverage);
+  return packs.filter((pack) => (
+    pack.status === "ready"
+    && pack.style === PACK_STYLE
+    && pack.packVersion === PACKS_VERSION
+    && pack.baseTileCount > 0
+    && pack.coverage
+  ));
 }
 
 // Scans already rendered on disk (frame + source grid), without touching MeteoGate. This is what
@@ -221,14 +237,23 @@ async function countExistingTiles(root: string, jobs: OperaOverviewTileJob[], st
   let bytes = 0;
   const missing: OperaOverviewTileJob[] = [];
 
-  for (const job of jobs) {
-    const tilePath = path.join(root, "tiles", style, key, String(job.z), String(job.x), `${job.y}.webp`);
-    try {
-      const stats = await stat(tilePath);
-      count += 1;
-      bytes += stats.size;
-    } catch {
-      missing.push(job);
+  for (let index = 0; index < jobs.length; index += 64) {
+    const batch = jobs.slice(index, index + 64);
+    const results = await Promise.all(batch.map(async (job) => {
+      const tilePath = path.join(root, "tiles", style, key, String(job.z), String(job.x), `${job.y}.webp`);
+      try {
+        return { job, stats: await stat(tilePath) };
+      } catch {
+        return { job, stats: null };
+      }
+    }));
+    for (const result of results) {
+      if (result.stats) {
+        count += 1;
+        bytes += result.stats.size;
+      } else {
+        missing.push(result.job);
+      }
     }
   }
 
@@ -371,20 +396,32 @@ async function buildPacksForTimestamps(timestamps: string[], errors: Array<{ tim
   const queue = [...timestamps].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   let cursor = 0;
 
+  async function processTimestamp(timestamp: string) {
+    runtimeState.maintenanceSnapshot.building = [...new Set([...runtimeState.maintenanceSnapshot.building, timestamp])];
+    try {
+      await buildScanPack(timestamp);
+    } catch (error) {
+      errors.push({ timestamp, error: sanitizePackError(error) });
+    } finally {
+      runtimeState.maintenanceSnapshot.building = runtimeState.maintenanceSnapshot.building.filter((item) => item !== timestamp);
+    }
+  }
+
+  // Give the live frame the renderer exclusively. Once it is published Atlas has something
+  // useful to show; older scans can then backfill concurrently without delaying first paint.
+  const newest = queue[cursor];
+  if (newest) {
+    cursor += 1;
+    await processTimestamp(newest);
+  }
+
   async function worker() {
     while (cursor < queue.length) {
       const timestamp = queue[cursor];
       cursor += 1;
       if (!timestamp) continue;
 
-      maintenanceSnapshot.building = [...new Set([...maintenanceSnapshot.building, timestamp])];
-      try {
-        await buildScanPack(timestamp);
-      } catch (error) {
-        errors.push({ timestamp, error: sanitizePackError(error) });
-      } finally {
-        maintenanceSnapshot.building = maintenanceSnapshot.building.filter((item) => item !== timestamp);
-      }
+      await processTimestamp(timestamp);
     }
   }
 
@@ -401,9 +438,9 @@ async function runScanPackMaintenance() {
   // Phase 1 — no network: publish packs for every scan already rendered on disk. This is what
   // guarantees a ready pack exists as fast as possible after a cold start.
   const cachedTimestamps = (await listCachedFrameTimestamps()).slice(-MAX_KEPT_PACKS);
-  maintenanceSnapshot.scansDetected = cachedTimestamps.length;
+  runtimeState.maintenanceSnapshot.scansDetected = cachedTimestamps.length;
   await buildPacksForTimestamps(cachedTimestamps, errors);
-  maintenanceSnapshot.packsReady = (await listReadyScanPacks()).length;
+  runtimeState.maintenanceSnapshot.packsReady = (await listReadyScanPacks()).length;
 
   // Phase 2 — network: discover/render the latest 12 OPERA scans (MeteoGate + HDF5 + frame
   // renderer, all existing code), then publish packs for any new scan.
@@ -412,19 +449,20 @@ async function runScanPackMaintenance() {
     const readyTimestamps = manifest.frames
       .filter((item) => item.status === "ready")
       .map((item) => item.timestamp);
-    maintenanceSnapshot.scansDetected = Math.max(maintenanceSnapshot.scansDetected, manifest.availableCount);
+    runtimeState.maintenanceSnapshot.scansDetected = Math.max(runtimeState.maintenanceSnapshot.scansDetected, manifest.availableCount);
     await buildPacksForTimestamps(readyTimestamps, errors);
   } catch (error) {
     errors.push({ timestamp: "discovery", error: sanitizePackError(error) });
   }
 
   await pruneScanPacks();
-  maintenanceSnapshot.packsReady = (await listReadyScanPacks()).length;
-  maintenanceSnapshot.errors = errors.slice(0, 12);
+  runtimeState.maintenanceSnapshot.packsReady = (await listReadyScanPacks()).length;
+  runtimeState.maintenanceSnapshot.errors = errors.slice(0, 12);
 }
 
 export function getScanPackMaintenanceStatus(): ScanPackMaintenanceSnapshot {
-  return { ...maintenanceSnapshot, building: [...maintenanceSnapshot.building], errors: [...maintenanceSnapshot.errors] };
+  const snapshot = runtimeState.maintenanceSnapshot;
+  return { ...snapshot, building: [...snapshot.building], errors: [...snapshot.errors] };
 }
 
 // Server-only entry point. Detects available scans, builds missing packs (max 2 Python processes),
@@ -432,25 +470,25 @@ export function getScanPackMaintenanceStatus(): ScanPackMaintenanceSnapshot {
 // progress once triggered. Returns immediately with a status snapshot; the work continues in
 // the background. In production this must be driven by a permanent worker/cron.
 export function ensureRadarScanPacks(): ScanPackMaintenanceSnapshot {
-  if (!maintenanceTask) {
-    maintenanceSnapshot = {
-      ...maintenanceSnapshot,
+  if (!runtimeState.maintenanceTask) {
+    runtimeState.maintenanceSnapshot = {
+      ...runtimeState.maintenanceSnapshot,
       running: true,
       startedAt: nowIso(),
       finishedAt: null,
       errors: [],
     };
-    maintenanceTask = runScanPackMaintenance()
+    runtimeState.maintenanceTask = runScanPackMaintenance()
       .catch((error) => {
-        maintenanceSnapshot.errors = [
-          ...maintenanceSnapshot.errors,
+        runtimeState.maintenanceSnapshot.errors = [
+          ...runtimeState.maintenanceSnapshot.errors,
           { timestamp: "maintenance", error: sanitizePackError(error) },
         ];
       })
       .finally(() => {
-        maintenanceSnapshot.running = false;
-        maintenanceSnapshot.finishedAt = nowIso();
-        maintenanceTask = null;
+        runtimeState.maintenanceSnapshot.running = false;
+        runtimeState.maintenanceSnapshot.finishedAt = nowIso();
+        runtimeState.maintenanceTask = null;
       });
   }
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 try:
     import mercantile
@@ -28,7 +28,7 @@ else:
 TILE_SIZE = 256
 GUTTER_PIXELS = 2
 TARGET_CRS = "EPSG:3857"
-TILE_RENDER_VERSION = "v3c"
+TILE_RENDER_VERSION = "v4a"
 STRONG_ECHO_DBZH = 35.0
 
 WEYRA_DBZH_DISPLAY_V1 = {
@@ -120,12 +120,37 @@ WEYRA_DBZH_DISPLAY_V3C = {
     ],
 }
 
+WEYRA_DBZH_DISPLAY_V4A = {
+    **WEYRA_DBZH_DISPLAY_V3,
+    "displayVersion": "v4a",
+    "thresholdDbzh": 10.0,
+    "alphaRampDbzh": [10.0, 16.0],
+    "stops": [
+        [10.0, 8, 107, 220, 0],
+        [13.0, 0, 143, 232, 30],
+        [16.0, 0, 176, 235, 64],
+        [20.0, 0, 205, 229, 92],
+        [24.0, 0, 217, 203, 116],
+        [28.0, 0, 216, 166, 142],
+        [32.0, 30, 209, 124, 166],
+        [35.0, 101, 210, 85, 188],
+        [38.0, 183, 216, 67, 206],
+        [42.0, 244, 219, 59, 220],
+        [46.0, 255, 159, 49, 231],
+        [50.0, 255, 73, 63, 240],
+        [55.0, 240, 46, 146, 246],
+        [60.0, 213, 59, 209, 250],
+        [70.0, 158, 62, 236, 252],
+    ],
+}
+
 DISPLAY_CONFIGS = {
     "v1": WEYRA_DBZH_DISPLAY_V1,
     "v2": WEYRA_DBZH_DISPLAY_V2,
     "v3": WEYRA_DBZH_DISPLAY_V3,
     "v3b": WEYRA_DBZH_DISPLAY_V3B,
     "v3c": WEYRA_DBZH_DISPLAY_V3C,
+    "v4a": WEYRA_DBZH_DISPLAY_V4A,
 }
 
 
@@ -145,7 +170,12 @@ def tile_bounds(z: int, x: int, y: int) -> tuple[dict[str, float], dict[str, flo
     )
 
 
-def colorize(dbz: np.ndarray, valid: np.ndarray, display_config: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+def colorize(
+    dbz: np.ndarray,
+    valid: np.ndarray,
+    display_config: dict[str, Any],
+    coverage: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     stops = np.array(display_config["stops"], dtype=np.float32)
     threshold = float(display_config["thresholdDbzh"])
     rgba = np.zeros((*dbz.shape, 4), dtype=np.uint8)
@@ -156,15 +186,60 @@ def colorize(dbz: np.ndarray, valid: np.ndarray, display_config: dict[str, Any])
         rgba[..., channel] = np.clip(channel_values, 0, 255).astype(np.uint8)
 
     visible = valid & np.isfinite(dbz) & (dbz >= threshold)
-    rgba[..., 3] = np.where(visible, rgba[..., 3], 0).astype(np.uint8)
+    alpha = rgba[..., 3].astype(np.float32)
+    if coverage is not None:
+        # Coverage is a display-only edge mask. DBZH is still reprojected independently with
+        # nodata awareness; this merely feathers the outer pixel of a real echo instead of
+        # exposing the source grid as hard 1 km squares.
+        edge_weight = np.power(np.clip(coverage, 0.0, 1.0), 0.7)
+        alpha *= edge_weight
+    rgba[..., 3] = np.where(visible, np.rint(alpha), 0).astype(np.uint8)
+    rgba[~visible] = 0
     return rgba, visible
+
+
+def display_smoothing_radius(z: int, display_version: str) -> float:
+    if display_version != "v4a":
+        return 0.0
+    return 0.35 if z <= 6 else 0.55
+
+
+def smooth_rgba(rgba: np.ndarray, radius: float) -> np.ndarray:
+    if radius <= 0:
+        return rgba
+
+    alpha = rgba[..., 3].astype(np.float32) / 255.0
+    premultiplied = np.rint(rgba[..., :3].astype(np.float32) * alpha[..., None]).astype(np.uint8)
+    blurred_alpha = np.asarray(
+        Image.fromarray(rgba[..., 3], "L").filter(ImageFilter.GaussianBlur(radius=radius)),
+        dtype=np.uint8,
+    )
+    blurred_premultiplied = np.stack([
+        np.asarray(
+            Image.fromarray(premultiplied[..., channel], "L").filter(ImageFilter.GaussianBlur(radius=radius)),
+            dtype=np.uint8,
+        )
+        for channel in range(3)
+    ], axis=-1)
+
+    output = np.zeros_like(rgba)
+    output[..., 3] = blurred_alpha
+    nonzero = blurred_alpha >= 3
+    alpha_float = blurred_alpha.astype(np.float32) / 255.0
+    output[..., :3][nonzero] = np.clip(
+        blurred_premultiplied[nonzero].astype(np.float32) / alpha_float[nonzero, None],
+        0,
+        255,
+    ).astype(np.uint8)
+    output[~nonzero] = 0
+    return output
 
 
 def resampling_for_zoom(z: int, display_version: str) -> tuple[Any, str, str]:
     if Resampling is None:
         raise RuntimeError("rasterio Resampling is unavailable.")
     if z <= 6:
-        if display_version in {"v3", "v3b", "v3c"}:
+        if display_version in {"v3", "v3b", "v3c", "v4a"}:
             return Resampling.average, "average-valid-dbzh-strong-max>=35", (
                 "At broad zooms, valid DBZH pixels are averaged, with real maxima >=35 dBZ preserved so intense cores do not disappear in the average."
             )
@@ -174,6 +249,16 @@ def resampling_for_zoom(z: int, display_version: str) -> tuple[Any, str, str]:
     return Resampling.bilinear, "bilinear-dbzh", (
         "At zooms 7 and above, DBZH values use bilinear reprojection to avoid blocky close-zoom artifacts while preserving real gradients."
     )
+
+
+def alpha_resampling_for_zoom(z: int, display_version: str) -> tuple[Any, str]:
+    if Resampling is None:
+        raise RuntimeError("rasterio Resampling is unavailable.")
+    if display_version != "v4a":
+        return Resampling.nearest, "nearest-alpha"
+    if z <= 6:
+        return Resampling.average, "average-coverage-alpha"
+    return Resampling.bilinear, "bilinear-coverage-alpha"
 
 
 def expanded_bounds(bounds_3857: dict[str, float], output_size: int, gutter_pixels: int) -> dict[str, float]:
@@ -271,7 +356,7 @@ def render_tile(
         render_size,
     )
     dbzh_resampling, dbzh_resampling_label, resampling_reason = resampling_for_zoom(z, display_config["displayVersion"])
-    alpha_resampling_label = "nearest-alpha"
+    alpha_resampling, alpha_resampling_label = alpha_resampling_for_zoom(z, display_config["displayVersion"])
 
     with rasterio.open(input_path) as source:
         nodata = source.nodata if source.nodata is not None else -9999.0
@@ -292,7 +377,7 @@ def render_tile(
             init_dest_nodata=True,
         )
 
-        if display_config["displayVersion"] in {"v3", "v3b", "v3c"} and z <= 6:
+        if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
             reproject(
                 source=rasterio.band(source, 1),
                 destination=destination_strong,
@@ -307,8 +392,8 @@ def render_tile(
             )
 
         source_values = source.read(1, masked=False)
-        source_mask = (np.isfinite(source_values) & (source_values != nodata)).astype(np.uint8)
-        destination_mask = np.zeros((render_size, render_size), dtype=np.uint8)
+        source_mask = (np.isfinite(source_values) & (source_values != nodata)).astype(np.float32)
+        destination_mask = np.zeros((render_size, render_size), dtype=np.float32)
 
         reproject(
             source=source_mask,
@@ -319,25 +404,28 @@ def render_tile(
             dst_transform=dst_transform,
             dst_crs=TARGET_CRS,
             dst_nodata=0,
-            resampling=Resampling.nearest,
+            resampling=alpha_resampling,
             init_dest_nodata=True,
         )
 
         inner = np.s_[GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE, GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE]
-        destination_inner = destination[inner]
-        if display_config["displayVersion"] in {"v3", "v3b", "v3c"} and z <= 6:
-            strong_inner = destination_strong[inner]
+        if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
             strong_mask = (
-                np.isfinite(strong_inner)
-                & (strong_inner != nodata)
-                & (strong_inner >= STRONG_ECHO_DBZH)
+                np.isfinite(destination_strong)
+                & (destination_strong != nodata)
+                & (destination_strong >= STRONG_ECHO_DBZH)
             )
             if np.any(strong_mask):
-                destination_inner = np.where(strong_mask, strong_inner, destination_inner)
+                destination = np.where(strong_mask, destination_strong, destination)
                 strong_echo_preservation_used = True
-        mask_inner = destination_mask[inner]
-        valid = (mask_inner > 0) & np.isfinite(destination_inner) & (destination_inner != nodata)
-        rgba, visible = colorize(destination_inner, valid, display_config)
+        valid_full = (destination_mask > 0.01) & np.isfinite(destination) & (destination != nodata)
+        coverage = destination_mask if display_config["displayVersion"] == "v4a" else None
+        rgba_full, visible_full = colorize(destination, valid_full, display_config, coverage)
+        smoothing_radius = display_smoothing_radius(z, display_config["displayVersion"])
+        rgba_full = smooth_rgba(rgba_full, smoothing_radius)
+        rgba = rgba_full[inner]
+        visible = rgba[..., 3] > 0
+        valid = valid_full[inner]
         save_tile(output_path, rgba)
 
         source_valid_pixels = int(np.count_nonzero(valid))
@@ -356,7 +444,7 @@ def render_tile(
             "resampling": f"{dbzh_resampling_label}-{alpha_resampling_label}",
             "resamplingDBZH": dbzh_resampling_label,
             "resamplingAlpha": alpha_resampling_label,
-            "resamplingReason": f"{resampling_reason} Alpha is reprojected separately with nearest-neighbour to avoid nodata halos.",
+            "resamplingReason": f"{resampling_reason} Alpha uses a separate source-coverage mask ({alpha_resampling_label}) and never mixes nodata into DBZH.",
             "displayVersion": display_config["displayVersion"],
             "displayConfig": {
                 "thresholdDbzh": display_config["thresholdDbzh"],
@@ -365,6 +453,7 @@ def render_tile(
             },
             "thresholdDbzh": display_config["thresholdDbzh"],
             "gutterPixels": GUTTER_PIXELS,
+            "displaySmoothingPixels": smoothing_radius,
             "strongEchoPreservationUsed": strong_echo_preservation_used,
             "renderedPixelsWithGutter": render_size,
             "sourceGridWidth": int(source.width),

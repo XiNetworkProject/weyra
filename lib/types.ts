@@ -17,6 +17,7 @@ export type WeatherSnapshot = {
   windSpeed: number;
   windDirection: number;
   windGusts: number;
+  humidity: number;
   pressure: number;
   observedAt: string;
 };
@@ -78,7 +79,24 @@ export type OperaRadarStatus = {
   historyTotalCount?: number;
 };
 
-export type ObservationCategory = "pluie" | "orage" | "grêle" | "rafales" | "neige" | "nuage";
+export const OBSERVATION_CATEGORY_VALUES = [
+  "pluie",
+  "orage",
+  "foudre",
+  "grêle",
+  "rafales",
+  "tornade",
+  "neige",
+  "verglas",
+  "brouillard",
+  "inondation",
+  "chaleur",
+  "froid",
+  "nuage",
+  "arc-en-ciel",
+] as const;
+
+export type ObservationCategory = (typeof OBSERVATION_CATEGORY_VALUES)[number];
 
 export type OperaFrameStatus = "ready" | "missing" | "failed";
 
@@ -167,7 +185,10 @@ export type OperaRadarMapTransition = {
 export type Observation = {
   id: string;
   nickname: string;
+  /** Primary phenomenon, retained for backwards-compatible storage and map styling. */
   category: ObservationCategory;
+  /** All phenomena reported at the same place and time, primary category first. */
+  phenomena?: ObservationCategory[];
   intensity: number;
   details?: string | null;
   imageUrl?: string | null;
@@ -176,5 +197,6 @@ export type Observation = {
   createdAt: string;
   likes: number;
   place?: string;
+  expiresAt?: string | null;
   isSeed?: boolean;
 };

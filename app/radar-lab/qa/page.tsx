@@ -84,7 +84,7 @@ type FrameManifest = {
   frames?: FrameOption[];
 };
 
-type TileDisplayVersion = "v3b" | "v3c";
+type TileDisplayVersion = "v3c" | "v4a";
 
 type TileStats = {
   loaded: number;
@@ -191,7 +191,7 @@ export default function OperaQaPage() {
   const tileMapRef = useRef<MapLibreMap | null>(null);
   const [frameOptions, setFrameOptions] = useState<FrameOption[]>([]);
   const [selectedTileTimestamp, setSelectedTileTimestamp] = useState("");
-  const [tileDisplayVersion, setTileDisplayVersion] = useState<TileDisplayVersion>("v3c");
+  const [tileDisplayVersion, setTileDisplayVersion] = useState<TileDisplayVersion>("v4a");
   const [tilePrepared, setTilePrepared] = useState(false);
   const [tileLoading, setTileLoading] = useState(false);
   const [tileError, setTileError] = useState<string | null>(null);
@@ -284,7 +284,7 @@ export default function OperaQaPage() {
       const bbox = boundsPolygon(geographicBounds);
       const map = new maplibregl.Map({
         container: mapContainerRef.current,
-        style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        style: "/map-styles/weyra-atlas-v2.json",
         center: [3.7, 50.85],
         zoom: 6.6,
         pitch: 0,
@@ -404,7 +404,7 @@ export default function OperaQaPage() {
     const timestamp = selectedTileTimestamp || report?.timestamp;
     if (!timestamp) return;
 
-    const versions: TileDisplayVersion[] = ["v3b", "v3c"];
+    const versions: TileDisplayVersion[] = ["v3c", "v4a"];
     const testTiles = [
       { ...lonLatToTile(10.25, 52.38, 8), label: "Hanovre / Wolfsburg · régional z8" },
       { ...lonLatToTile(10.25, 52.38, 10), label: "Hanovre / Wolfsburg · rapproché z10" },
@@ -492,7 +492,7 @@ export default function OperaQaPage() {
 
       const map = new maplibregl.Map({
         container: tileMapContainerRef.current,
-        style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        style: "/map-styles/weyra-atlas-v2.json",
         center: [10.25, 52.38],
         zoom: 8,
         minZoom: 3,
@@ -669,7 +669,7 @@ export default function OperaQaPage() {
               <section className="qa-card" style={{ marginTop: 18 }}>
                 <header>
                   <h2>Validation tuiles Web Mercator</h2>
-                  <p>Comparaison QA entre les tuiles Weyra V3 et V3b, depuis la même frame OPERA locale, sans superposition des rendus.</p>
+                  <p>Comparaison QA entre les tuiles Weyra V3c et V4a, depuis la même frame OPERA locale, sans superposition des rendus.</p>
                 </header>
                 <div className="qa-card__body">
                   <div className="qa-controls">
@@ -689,8 +689,8 @@ export default function OperaQaPage() {
                   {tileError && <p className="qa-error">{tileError}</p>}
 
                   <div className="qa-segment" aria-label="Mode de validation radar">
-                    <button className={tileDisplayVersion === "v3b" ? "is-active" : ""} onClick={() => selectTileDisplayVersion("v3b")}>Tiles Weyra V3b</button>
-                    <button className={tileDisplayVersion === "v3c" ? "is-active" : ""} onClick={() => selectTileDisplayVersion("v3c")}>Tiles Weyra V3c</button>
+                    <button className={tileDisplayVersion === "v3c" ? "is-active" : ""} onClick={() => selectTileDisplayVersion("v3c")}>Avant · V3c</button>
+                    <button className={tileDisplayVersion === "v4a" ? "is-active" : ""} onClick={() => selectTileDisplayVersion("v4a")}>Nouveau · V4a</button>
                   </div>
 
                   <div ref={tileMapContainerRef} className="qa-map" />
@@ -744,7 +744,7 @@ export default function OperaQaPage() {
                     </table>
                   )}
                   <p className="qa-note">
-                    Tuiles Web Mercator EPSG:3857 générées depuis une vraie trame OPERA DBZH. La comparaison prépare exactement Hanovre / Wolfsburg en z=8 régional et z=10 rapproché, pour V3 et V3b sur le même timestamp. URL template interne : {selectedTileTimestamp ? tileTemplate(selectedTileTimestamp, tileDisplayVersion) : "n/a"}
+                    Tuiles Web Mercator EPSG:3857 générées depuis une vraie trame OPERA DBZH. La comparaison prépare exactement Hanovre / Wolfsburg en z=8 régional et z=10 rapproché, pour V3c et V4a sur le même timestamp. URL template interne : {selectedTileTimestamp ? tileTemplate(selectedTileTimestamp, tileDisplayVersion) : "n/a"}
                   </p>
 
                   <details className="qa-details">

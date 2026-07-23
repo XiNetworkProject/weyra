@@ -21,7 +21,7 @@ function sanitizeTileError(error: unknown) {
 export async function GET(_request: Request, context: RouteContext) {
   const startedAt = Date.now();
   let tileLabel = "unknown";
-  let styleLabel = "v3c";
+  let styleLabel = "v4a";
 
   try {
     const request = _request;
@@ -50,7 +50,7 @@ export async function GET(_request: Request, context: RouteContext) {
         "X-Weyra-Radar-Timestamp": tile.meta.timestamp,
         "X-Weyra-Radar-Projection": "EPSG-3857",
         "X-Weyra-Tile-Cache": "hit",
-        "X-Weyra-Radar-Tile-Style": tile.meta.displayVersion ?? "v3",
+        "X-Weyra-Radar-Tile-Style": tile.meta.displayVersion ?? "v4a",
         "Server-Timing": `weyra-tile;dur=${durationMs}`,
       },
     });

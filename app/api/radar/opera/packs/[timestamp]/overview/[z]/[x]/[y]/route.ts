@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import {
+  PACK_STYLE,
   PACK_OVERVIEW_ZOOM_MAX,
   PACK_OVERVIEW_ZOOM_MIN,
   getScanPackManifest,
@@ -21,6 +22,7 @@ const TRANSPARENT_TILE = Buffer.from(
   "UklGRiIAAABXRUJQVlA4TBUAAAAv/8A/EAcQEREAUKT//ymi/6n//QcA",
   "base64",
 );
+const LEGACY_OVERVIEW_ZOOM_MAX = 7;
 
 const IMMUTABLE_HEADERS = {
   "Content-Type": "image/webp",
@@ -28,6 +30,7 @@ const IMMUTABLE_HEADERS = {
   "X-Weyra-Radar-Provider": "EUMETNET-OPERA",
   "X-Weyra-Radar-Product": "DBZH",
   "X-Weyra-Radar-Projection": "EPSG-3857",
+  "X-Weyra-Radar-Style": PACK_STYLE,
   "X-Weyra-Radar-Pack-Layer": "overview",
 } as const;
 
@@ -47,7 +50,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const x = Number(params.x);
   const y = Number(params.y);
 
-  if (![z, x, y].every(Number.isInteger) || z < PACK_OVERVIEW_ZOOM_MIN || z > PACK_OVERVIEW_ZOOM_MAX) {
+  if (![z, x, y].every(Number.isInteger) || z < PACK_OVERVIEW_ZOOM_MIN || z > Math.max(PACK_OVERVIEW_ZOOM_MAX, LEGACY_OVERVIEW_ZOOM_MAX)) {
     return notFound();
   }
   const limit = 2 ** z;
@@ -65,7 +68,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // In-range miss: only answer transparently for a genuinely published pack, so a published
     // overview never shows a hole while unpublished timestamps keep returning a fast 404.
     const manifest = await getScanPackManifest(timestamp);
-    if (manifest?.status === "ready") {
+    if (manifest?.status === "ready" && z <= manifest.baseZoomMax) {
       return new Response(new Uint8Array(TRANSPARENT_TILE), {
         status: 200,
         headers: { ...IMMUTABLE_HEADERS, "X-Weyra-Tile-Cache": "pack-transparent" },

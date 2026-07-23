@@ -13,10 +13,13 @@ from render_opera_tile import (
     STRONG_ECHO_DBZH,
     TARGET_CRS,
     TILE_SIZE,
+    alpha_resampling_for_zoom,
     colorize,
+    display_smoothing_radius,
     expanded_bounds,
     resampling_for_zoom,
     save_tile,
+    smooth_rgba,
     tile_bounds,
     utc_now,
 )
@@ -101,12 +104,12 @@ def render_one_tile(
         render_size,
     )
     dbzh_resampling, dbzh_resampling_label, resampling_reason = resampling_for_zoom(z, display_config["displayVersion"])
-    alpha_resampling_label = "nearest-alpha"
+    alpha_resampling, alpha_resampling_label = alpha_resampling_for_zoom(z, display_config["displayVersion"])
     nodata = source.nodata if source.nodata is not None else -9999.0
 
     destination = np.full((render_size, render_size), nodata, dtype=np.float32)
     destination_strong = np.full((render_size, render_size), nodata, dtype=np.float32)
-    destination_mask = np.zeros((render_size, render_size), dtype=np.uint8)
+    destination_mask = np.zeros((render_size, render_size), dtype=np.float32)
     strong_echo_preservation_used = False
 
     reproject(
@@ -122,7 +125,7 @@ def render_one_tile(
         init_dest_nodata=True,
     )
 
-    if display_config["displayVersion"] in {"v3", "v3b", "v3c"} and z <= 6:
+    if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
         reproject(
             source=rasterio.band(source, 1),
             destination=destination_strong,
@@ -145,26 +148,29 @@ def render_one_tile(
         dst_transform=dst_transform,
         dst_crs=TARGET_CRS,
         dst_nodata=0,
-        resampling=Resampling.nearest,
+        resampling=alpha_resampling,
         init_dest_nodata=True,
     )
 
     inner = np.s_[GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE, GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE]
-    destination_inner = destination[inner]
-    if display_config["displayVersion"] in {"v3", "v3b", "v3c"} and z <= 6:
-        strong_inner = destination_strong[inner]
+    if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
         strong_mask = (
-            np.isfinite(strong_inner)
-            & (strong_inner != nodata)
-            & (strong_inner >= STRONG_ECHO_DBZH)
+            np.isfinite(destination_strong)
+            & (destination_strong != nodata)
+            & (destination_strong >= STRONG_ECHO_DBZH)
         )
         if np.any(strong_mask):
-            destination_inner = np.where(strong_mask, strong_inner, destination_inner)
+            destination = np.where(strong_mask, destination_strong, destination)
             strong_echo_preservation_used = True
 
-    mask_inner = destination_mask[inner]
-    valid = (mask_inner > 0) & np.isfinite(destination_inner) & (destination_inner != nodata)
-    rgba, visible = colorize(destination_inner, valid, display_config)
+    valid_full = (destination_mask > 0.01) & np.isfinite(destination) & (destination != nodata)
+    coverage = destination_mask if display_config["displayVersion"] == "v4a" else None
+    rgba_full, visible_full = colorize(destination, valid_full, display_config, coverage)
+    smoothing_radius = display_smoothing_radius(z, display_config["displayVersion"])
+    rgba_full = smooth_rgba(rgba_full, smoothing_radius)
+    rgba = rgba_full[inner]
+    visible = rgba[..., 3] > 0
+    valid = valid_full[inner]
     save_tile(image_path, rgba)
 
     visible_pixels = int(np.count_nonzero(visible))
@@ -182,7 +188,7 @@ def render_one_tile(
         "resampling": f"{dbzh_resampling_label}-{alpha_resampling_label}",
         "resamplingDBZH": dbzh_resampling_label,
         "resamplingAlpha": alpha_resampling_label,
-        "resamplingReason": f"{resampling_reason} Alpha is reprojected separately with nearest-neighbour to avoid nodata halos.",
+        "resamplingReason": f"{resampling_reason} Alpha uses a separate source-coverage mask ({alpha_resampling_label}) and never mixes nodata into DBZH.",
         "displayVersion": display_config["displayVersion"],
         "displayConfig": {
             "thresholdDbzh": display_config["thresholdDbzh"],
@@ -191,6 +197,7 @@ def render_one_tile(
         },
         "thresholdDbzh": display_config["thresholdDbzh"],
         "gutterPixels": GUTTER_PIXELS,
+        "displaySmoothingPixels": smoothing_radius,
         "strongEchoPreservationUsed": strong_echo_preservation_used,
         "renderedPixelsWithGutter": render_size,
         "sourceGridWidth": int(source.width),
@@ -241,7 +248,7 @@ def main() -> int:
         with rasterio.open(args.input) as source:
             nodata = source.nodata if source.nodata is not None else -9999.0
             source_values = source.read(1, masked=False)
-            source_mask = (np.isfinite(source_values) & (source_values != nodata)).astype(np.uint8)
+            source_mask = (np.isfinite(source_values) & (source_values != nodata)).astype(np.float32)
             for job in jobs:
                 generated.append(render_one_tile(
                     source,

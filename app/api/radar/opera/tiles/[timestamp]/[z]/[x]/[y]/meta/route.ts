@@ -41,7 +41,7 @@ export async function GET(_request: Request, context: RouteContext) {
       resampling: tile.meta.resampling,
       resamplingDBZH: tile.meta.resamplingDBZH ?? null,
       resamplingAlpha: tile.meta.resamplingAlpha ?? null,
-      displayVersion: tile.meta.displayVersion ?? "v3",
+      displayVersion: tile.meta.displayVersion ?? "v4a",
       thresholdDbzh: tile.meta.thresholdDbzh ?? null,
       gutterPixels: tile.meta.gutterPixels ?? null,
       strongEchoPreservationUsed: tile.meta.strongEchoPreservationUsed ?? false,

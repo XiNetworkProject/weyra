@@ -43,7 +43,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
-    // Primary storage: the scan pack itself (packs/v1/<ts>/detail/z/x/y.webp). The shared tile
+    // Primary storage: the scan pack itself (packs/v3/<ts>/detail/z/x/y.webp). The shared tile
     // cache stays as a read-only fallback for tiles prewarmed before the pack was published.
     const image = await readFile(packDetailTilePath(timestamp, z, x, y)).catch(() => (
       readFile(operaCachedTileImagePath(timestamp, z, x, y, PACK_STYLE))
@@ -56,6 +56,7 @@ export async function GET(_request: Request, context: RouteContext) {
         "X-Weyra-Radar-Provider": "EUMETNET-OPERA",
         "X-Weyra-Radar-Product": "DBZH",
         "X-Weyra-Radar-Projection": "EPSG-3857",
+        "X-Weyra-Radar-Style": PACK_STYLE,
         "X-Weyra-Radar-Pack-Layer": "detail",
         "X-Weyra-Tile-Cache": "pack-hit",
       },

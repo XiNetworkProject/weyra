@@ -1,31 +1,15 @@
 import type { Observation, ObservationCategory } from "@/lib/types";
-
-function svgData(background: string, foreground: string, symbol: string) {
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
-    <defs>
-      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-        <stop stop-color="${background}" offset="0"/>
-        <stop stop-color="#091524" offset="1"/>
-      </linearGradient>
-      <filter id="blur"><feGaussianBlur stdDeviation="15"/></filter>
-    </defs>
-    <rect width="240" height="160" fill="url(#g)"/>
-    <circle cx="180" cy="35" r="70" fill="${foreground}" opacity=".38" filter="url(#blur)"/>
-    <path d="M0 126 Q42 91 80 122 T160 115 T240 130 V160 H0Z" fill="#06111d" opacity=".72"/>
-    <text x="120" y="100" text-anchor="middle" font-size="64">${symbol}</text>
-  </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
+import { SOCIAL_DEMO_OBSERVATIONS } from "@/lib/social-demo-data";
 
 export const DEMO_IMAGES = {
-  orage: svgData("#60426e", "#f7bd58", "⚡"),
-  pluie: svgData("#1b668e", "#5ed5ff", "☔"),
-  grêle: svgData("#406f83", "#d3f8ff", "🧊"),
-  rafales: svgData("#3c5d7b", "#aa8eff", "💨"),
-  neige: svgData("#638a9a", "#e8fcff", "❄️"),
-  nuage: svgData("#87516d", "#ffad71", "☁️"),
-} satisfies Record<ObservationCategory, string>;
+  orage: "/media/observations/foudre-lointaine.webp",
+  pluie: "/media/observations/averse-route.webp",
+  grêle: "/media/observations/grele-terrasse.webp",
+  rafales: "/media/observations/arcus-champs.webp",
+  brouillard: "/media/observations/brouillard-canal.webp",
+  "arc-en-ciel": "/media/observations/arc-en-ciel-dunes.webp",
+  nuage: "/media/observations/arcus-champs.webp",
+} satisfies Partial<Record<ObservationCategory, string>>;
 
 export function seededObservations(): Observation[] {
   const now = Date.now();
@@ -34,6 +18,7 @@ export function seededObservations(): Observation[] {
       id: "seed-storm",
       nickname: "Storm_chaser",
       category: "pluie",
+      phenomena: ["pluie", "rafales", "orage"],
       intensity: 4,
       details: "Averse intense et fortes rafales de vent.",
       lat: 50.523,
@@ -42,12 +27,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.pluie,
       likes: 24,
       place: "Templeuve-en-Pévèle",
+      expiresAt: new Date(now + 55 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-rain",
       nickname: "Léna Météo",
       category: "pluie",
+      phenomena: ["pluie", "rafales"],
       intensity: 3,
       details: "Averse soutenue, visibilité réduite par moments.",
       lat: 50.685,
@@ -56,12 +43,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.pluie,
       likes: 8,
       place: "Armentières",
+      expiresAt: new Date(now + 42 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-cloud",
       nickname: "Nord Ciel",
       category: "nuage",
+      phenomena: ["nuage"],
       intensity: 2,
       details: "Base nuageuse très sombre vers le nord-ouest.",
       lat: 50.598,
@@ -70,12 +59,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.nuage,
       likes: 11,
       place: "Béthune",
+      expiresAt: new Date(now + 105 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-wind",
       nickname: "Chloé Photo",
       category: "rafales",
+      phenomena: ["rafales", "pluie"],
       intensity: 3,
       details: "Rafales visibles dans les arbres, pluie faible.",
       lat: 50.371,
@@ -84,12 +75,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.rafales,
       likes: 5,
       place: "Douai",
+      expiresAt: new Date(now + 30 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-coast",
       nickname: "Côte Opale",
       category: "pluie",
+      phenomena: ["pluie"],
       intensity: 2,
       details: "Averse côtière qui remonte vers l'intérieur des terres.",
       lat: 50.868,
@@ -98,12 +91,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.pluie,
       likes: 16,
       place: "Guines",
+      expiresAt: new Date(now + 75 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-dunkerque",
       nickname: "Dunes du Nord",
       category: "pluie",
+      phenomena: ["pluie", "rafales"],
       intensity: 2,
       details: "Rideau de pluie visible sur la mer.",
       lat: 51.017,
@@ -112,12 +107,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.pluie,
       likes: 6,
       place: "Gravelines",
+      expiresAt: new Date(now + 48 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-tournai",
       nickname: "Ciel Wallon",
       category: "orage",
+      phenomena: ["orage", "foudre", "pluie"],
       intensity: 4,
       details: "Front orageux très actif au-dessus de Tournai.",
       lat: 50.624,
@@ -126,12 +123,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.orage,
       likes: 19,
       place: "Froyennes",
+      expiresAt: new Date(now + 70 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-stamand",
       nickname: "Parc Scarpe",
       category: "pluie",
+      phenomena: ["pluie", "rafales"],
       intensity: 3,
       details: "Pluie battante sur la forêt de Raismes.",
       lat: 50.443,
@@ -140,12 +139,14 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.pluie,
       likes: 9,
       place: "Saint-Amand-les-Eaux",
+      expiresAt: new Date(now + 52 * 60_000).toISOString(),
       isSeed: true,
     },
     {
       id: "seed-lille",
       nickname: "Léo Weppes",
       category: "nuage",
+      phenomena: ["nuage", "brouillard"],
       intensity: 2,
       details: "Base sombre en approche sur la métropole.",
       lat: 50.641,
@@ -154,7 +155,9 @@ export function seededObservations(): Observation[] {
       imageUrl: DEMO_IMAGES.nuage,
       likes: 4,
       place: "Lille",
+      expiresAt: new Date(now + 95 * 60_000).toISOString(),
       isSeed: true,
     },
+    ...SOCIAL_DEMO_OBSERVATIONS,
   ];
 }
