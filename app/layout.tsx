@@ -3,6 +3,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import "./product.css";
 import "./community.css";
+import "./redesign.css";
 
 export const metadata: Metadata = {
   title: "Weyra - le ciel près de toi",
@@ -28,7 +29,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   colorScheme: "dark",
-  themeColor: "#06111d",
+  themeColor: "#070914",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
