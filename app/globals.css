@@ -2049,3 +2049,193 @@ button svg, .atlas-search svg { display: block; }
   .atlas-app[data-ui-shell="v2"] .atlas-timeline--v3 .atlas-timeline__identity > span:last-child { display: none; }
   .atlas-app[data-ui-shell="v2"] .atlas-timeline--v3 .atlas-timeline__bar { grid-template-columns: 28px minmax(84px, 1fr) auto; }
 }
+
+/* ==========================================================================
+   WEYRA ATLAS ORBIT — refonte structurelle du HUD desktop (>= 901px).
+   La composition mobile (<= 900px) conserve ses propres regles : ici on ne
+   touche qu'a la disposition grande largeur + quelques matieres colorees.
+   ========================================================================== */
+@keyframes atlas-orbit-enter-top {
+  from { opacity: 0; transform: translate(-50%, -14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes atlas-orbit-enter-dock {
+  from { opacity: 0; transform: translate(-50%, 16px) scale(.97); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@media (min-width: 901px) {
+  /* --- Barre de commande centrale : un seul ilot flottant --------------- */
+  .atlas-app[data-ui-shell="v2"] .atlas-topbar {
+    left: 50%;
+    right: auto;
+    width: min(1120px, calc(100vw - 56px));
+    transform: translateX(-50%);
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--hud-line);
+    border-radius: 24px;
+    background: linear-gradient(155deg, rgba(10, 23, 41, .84), rgba(4, 13, 26, .72));
+    box-shadow: 0 26px 64px rgba(0, 0, 0, .36), inset 0 1px 0 rgba(255, 255, 255, .06);
+    backdrop-filter: blur(28px) saturate(1.3);
+    animation: atlas-orbit-enter-top .58s var(--hud-ease) both;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-brand { font-size: 26px; padding-left: 8px; }
+  .atlas-app[data-ui-shell="v2"] .atlas-brand i {
+    background: linear-gradient(90deg, #8f7bff, #54d7ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-search { flex: 1 1 auto; width: auto; max-width: 470px; }
+  .atlas-app[data-ui-shell="v2"] .atlas-search > input {
+    width: 100%;
+    height: 44px;
+    border-color: rgba(150, 190, 230, .10);
+    border-radius: 15px;
+    background: rgba(255, 255, 255, .045);
+    box-shadow: none;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-search > input:focus {
+    background: rgba(6, 15, 28, .9);
+    box-shadow: 0 0 0 4px rgba(139, 92, 246, .12);
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-topbar__spacer { display: none; }
+  .atlas-app[data-ui-shell="v2"] .atlas-round-button {
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, .05);
+    box-shadow: none;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-round-button.is-active {
+    color: #fff;
+    background: linear-gradient(140deg, rgba(124, 92, 255, .34), rgba(84, 215, 255, .18));
+    border-color: rgba(167, 139, 250, .42);
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-system-status { border-radius: 999px; }
+
+  /* --- NowCast : sous l'ilot, toujours centre ---------------------------- */
+  .atlas-app[data-ui-shell="v2"] .atlas-nowcast { top: 92px; }
+
+  /* --- Carte meteo editoriale : aurore, temp geante en degrade ----------- */
+  .atlas-app[data-ui-shell="v2"] .atlas-weather-card {
+    top: 96px;
+    left: 26px;
+    width: 264px;
+    padding: 20px 18px 17px;
+    border-radius: 24px;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-weather-card::before {
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #7c5cff, #54d7ff 55%, transparent 92%);
+    opacity: .9;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-weather-card__icon {
+    background: linear-gradient(145deg, rgba(124, 92, 255, .24), rgba(84, 215, 255, .10));
+    border-color: rgba(150, 170, 255, .16);
+    box-shadow: 0 10px 26px rgba(96, 80, 220, .22), inset 0 1px 0 rgba(255, 255, 255, .08);
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-weather-card__temp {
+    font-size: 54px;
+    background: linear-gradient(120deg, #ffffff 25%, #a8dcff 70%, #8f7bff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-weather-card__stats > div {
+    border-radius: 12px;
+    background: rgba(124, 140, 255, .05);
+    border-color: rgba(139, 160, 230, .10);
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-nearby { top: 376px; }
+
+  /* --- Alertes : coin haut droit (les couches migrent en dock) ----------- */
+  .atlas-app[data-ui-shell="v2"] .atlas-alerts { top: 96px; right: 26px; width: 232px; }
+
+  /* --- Dock de couches horizontal, centre au-dessus de la timeline ------- */
+  .atlas-app[data-ui-shell="v2"] .atlas-layers {
+    top: auto;
+    right: auto;
+    left: 50%;
+    bottom: 104px;
+    width: auto;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    padding: 7px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    animation: atlas-orbit-enter-dock .62s .16s var(--hud-ease) both;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers__title { display: none; }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers > button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 66px;
+    min-height: 58px;
+    padding: 7px 4px 6px;
+    border-radius: 16px;
+    text-align: center;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers > button + button { margin-top: 0; }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers > button:hover { transform: translateY(-2px); }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers__copy { justify-items: center; }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers__copy b { font-size: 8.5px; font-weight: 720; }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers__copy small,
+  .atlas-app[data-ui-shell="v2"] .atlas-layers > button i,
+  .atlas-app[data-ui-shell="v2"] .atlas-layers > button em { display: none; }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers > button.atlas-layers__more {
+    width: 42px;
+    min-height: 58px;
+    margin-top: 0;
+    padding: 0;
+    border-top: 0;
+    border-radius: 16px;
+    justify-content: center;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-layers__more b { display: none; }
+
+  /* --- FAB Signaler : degrade violet -> cyan, halo neon ------------------ */
+  .atlas-app[data-ui-shell="v2"] .atlas-report-fab {
+    right: 88px;
+    bottom: 166px;
+    border-radius: 17px;
+    border-color: rgba(150, 200, 255, .40);
+    background: linear-gradient(135deg, #7c5cff 8%, #38b6f4 92%);
+    box-shadow: 0 16px 38px rgba(70, 90, 220, .42), 0 0 26px rgba(84, 215, 255, .16), inset 0 1px 0 rgba(255, 255, 255, .22);
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-report-fab span { background: rgba(255, 255, 255, .16); }
+  .atlas-app[data-ui-shell="v2"] .atlas-report-fab:hover {
+    box-shadow: 0 20px 46px rgba(70, 90, 220, .52), 0 0 34px rgba(84, 215, 255, .22), inset 0 1px 0 rgba(255, 255, 255, .24);
+  }
+
+  /* --- Timeline radar : pilule centree, respirante ----------------------- */
+  .atlas-app[data-ui-shell="v2"] .atlas-timeline { justify-content: center; }
+  .atlas-app[data-ui-shell="v2"] .atlas-timeline--v3 .atlas-timeline__bar {
+    flex: 0 1 auto;
+    width: min(1000px, 100%);
+    border-radius: 18px;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-timeline--v3 .atlas-timeline__play {
+    border-radius: 50%;
+    background: linear-gradient(150deg, #7c5cff, #4f9df0);
+    border-color: rgba(190, 200, 255, .44);
+    color: #fff;
+  }
+  .atlas-app[data-ui-shell="v2"] .atlas-timeline--v3.is-playing .atlas-timeline__play {
+    background: linear-gradient(150deg, #54d7ff, #38b6f4);
+    color: #06131f;
+  }
+
+  /* --- Legende radar : pilule compacte ------------------------------------ */
+  .atlas-app[data-ui-shell="v2"] .atlas-radar-legend { border-radius: 999px; padding: 10px 16px 9px; }
+}
