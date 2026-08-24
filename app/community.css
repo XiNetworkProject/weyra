@@ -7182,3 +7182,765 @@
     gap: 2px;
   }
 }
+
+
+/* ============================================================
+   WEYRA SPECTRUM — refonte visuelle globale (couche finale)
+   Base nuit alignée sur la carte Atlas v3, typographie dédiée
+   et un accent coloré par espace via [data-space].
+   Ne touche pas au layout : couleurs, surfaces, effets, type.
+   ============================================================ */
+
+/* ---------- Tokens de base ---------- */
+:root {
+  --weyra-night: #030a14;
+  --weyra-nav: #050f1d;
+  --weyra-surface-1: #081627;
+  --weyra-surface-2: #0c1f36;
+  --weyra-primary: #8b5cf6;
+  --weyra-sky: #38d6f5;
+  --weyra-aurora: #a78bfa;
+  --weyra-success: #34d399;
+  --weyra-warning: #fbbf24;
+  --weyra-danger: #fb7185;
+  --weyra-text: #eef5fc;
+  --weyra-text-soft: #b9cbde;
+  --weyra-text-muted: #7d95ad;
+  --weyra-line: rgba(140, 190, 230, 0.10);
+  --weyra-line-strong: rgba(140, 200, 240, 0.20);
+  --weyra-shadow: 0 24px 72px rgba(0, 4, 12, 0.5);
+  --weyra-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --weyra-font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ---------- Accents par espace ---------- */
+.weyra-shell {
+  --space-accent: #8b5cf6;
+  --space-accent-2: #38d6f5;
+}
+.weyra-shell[data-space="home"]        { --space-accent: #22d3ee; --space-accent-2: #60a5fa; }
+.weyra-shell[data-space="atlas"]        { --space-accent: #8b5cf6; --space-accent-2: #38d6f5; }
+.weyra-shell[data-space="explore"]      { --space-accent: #34d399; --space-accent-2: #22d3ee; }
+.weyra-shell[data-space="communities"]  { --space-accent: #fbbf24; --space-accent-2: #fb7185; }
+.weyra-shell[data-space="messages"]     { --space-accent: #f472b6; --space-accent-2: #8b5cf6; }
+.weyra-shell[data-space="notifications"]{ --space-accent: #60a5fa; --space-accent-2: #22d3ee; }
+.weyra-shell[data-space="profile"]      { --space-accent: #a78bfa; --space-accent-2: #f472b6; }
+.weyra-shell[data-space="settings"]     { --space-accent: #94a3b8; --space-accent-2: #60a5fa; }
+.weyra-shell[data-space="learn"]        { --space-accent: #2dd4bf; --space-accent-2: #a3e635; }
+/* Routes héritées */
+.weyra-shell[data-space="around"]       { --space-accent: #22d3ee; --space-accent-2: #60a5fa; }
+.weyra-shell[data-space="feed"]         { --space-accent: #34d399; --space-accent-2: #22d3ee; }
+.weyra-shell[data-space="activity"]     { --space-accent: #60a5fa; --space-accent-2: #22d3ee; }
+.weyra-shell[data-space="rooms"]        { --space-accent: #f472b6; --space-accent-2: #8b5cf6; }
+.weyra-shell[data-space="alerts"]       { --space-accent: #fb7185; --space-accent-2: #fbbf24; }
+
+.weyra-shell {
+  --space-accent-soft: color-mix(in srgb, var(--space-accent) 13%, transparent);
+  --space-accent-softer: color-mix(in srgb, var(--space-accent) 7%, transparent);
+  --space-accent-line: color-mix(in srgb, var(--space-accent) 38%, transparent);
+  --space-accent-glow: color-mix(in srgb, var(--space-accent) 45%, transparent);
+}
+
+/* ---------- Typographie ---------- */
+.weyra-shell {
+  font-family: var(--weyra-font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.weyra-shell h1,
+.weyra-shell h2,
+.weyra-shell h3,
+.weyra-shell-topbar__brand b,
+.weyra-global-rail__brand span {
+  font-family: var(--weyra-font-display);
+  letter-spacing: -0.015em;
+}
+
+.weyra-page-heading h1,
+.admin-heading h1 {
+  font-weight: 700;
+}
+
+/* ---------- Ambiance de fond du shell ---------- */
+.weyra-shell {
+  background:
+    radial-gradient(1100px 520px at 85% -10%, var(--space-accent-softer), transparent 62%),
+    radial-gradient(900px 620px at -12% 108%, rgba(56, 214, 245, 0.05), transparent 58%),
+    var(--weyra-night);
+  transition: background 400ms ease;
+}
+
+.weyra-shell button:focus-visible,
+.weyra-shell input:focus-visible,
+.weyra-shell textarea:focus-visible,
+.weyra-shell select:focus-visible {
+  outline: 2px solid var(--space-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Rail latéral ---------- */
+.weyra-global-rail {
+  border-right: 1px solid var(--weyra-line);
+  background:
+    linear-gradient(180deg, rgba(10, 24, 42, 0.9), rgba(3, 10, 20, 0.96) 34%),
+    var(--weyra-nav);
+  box-shadow: 12px 0 40px rgba(0, 4, 12, 0.3);
+}
+
+.weyra-global-rail__brand {
+  border-radius: 15px;
+  background: linear-gradient(140deg, #8b5cf6 0%, #38d6f5 100%);
+  color: #ffffff !important;
+  box-shadow:
+    0 10px 28px rgba(139, 92, 246, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.weyra-global-rail nav button,
+.weyra-global-rail__bottom > button {
+  color: #6e879f;
+}
+
+.weyra-global-rail nav button:hover,
+.weyra-global-rail__bottom > button:hover {
+  color: var(--weyra-text);
+  background: rgba(140, 190, 230, 0.07);
+}
+
+.weyra-global-rail nav button.is-active,
+.weyra-global-rail__bottom > button.is-active {
+  color: var(--space-accent);
+  background: var(--space-accent-soft);
+}
+
+.weyra-global-rail nav button.is-active::before {
+  background: linear-gradient(180deg, var(--space-accent), var(--space-accent-2));
+  box-shadow: 0 0 16px var(--space-accent-glow);
+}
+
+.weyra-global-rail nav button > span {
+  border-color: var(--weyra-line-strong);
+  background: #0a1a2e;
+  box-shadow: var(--weyra-shadow);
+}
+
+.weyra-global-rail nav button > i,
+.weyra-shell-topbar__actions > button > i {
+  border-color: var(--weyra-night);
+  background: linear-gradient(135deg, #f472b6, #fb7185);
+  box-shadow: 0 3px 10px rgba(244, 114, 182, 0.4);
+}
+
+.weyra-global-profile span,
+.weyra-shell-topbar__profile span {
+  border-color: color-mix(in srgb, var(--profile-accent, #8b5cf6) 70%, white 12%);
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--profile-accent, #8b5cf6) 34%, #0a1a2e), #081627);
+}
+
+/* ---------- Barre supérieure ---------- */
+.weyra-shell-topbar {
+  border-bottom: 1px solid var(--weyra-line);
+  background: rgba(4, 12, 22, 0.78);
+  box-shadow: 0 16px 44px rgba(0, 4, 12, 0.28);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+.weyra-shell-topbar__brand b {
+  background: linear-gradient(120deg, #ffffff 30%, #b9cbde);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.weyra-shell-topbar__brand span {
+  color: var(--space-accent);
+  letter-spacing: 0.14em;
+}
+
+.weyra-global-search {
+  border-radius: 999px;
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.72);
+}
+
+.weyra-global-search:hover {
+  border-color: var(--weyra-line-strong);
+}
+
+.weyra-global-search.is-open {
+  border-color: var(--space-accent-line);
+  background: #081627;
+  box-shadow: 0 0 0 4px var(--space-accent-softer), 0 18px 44px rgba(0, 4, 12, 0.4);
+}
+
+.weyra-global-search__results {
+  border-color: var(--weyra-line-strong);
+  border-radius: 18px;
+  background: rgba(6, 15, 28, 0.97);
+  backdrop-filter: blur(26px);
+}
+
+.weyra-global-search__suggestions button:hover,
+.weyra-global-search__matches button:hover {
+  background: var(--space-accent-softer);
+}
+
+.weyra-global-search__suggestions svg,
+.weyra-global-search__matches > button > svg:first-child,
+.weyra-global-search__results > footer button {
+  color: var(--space-accent);
+}
+
+.weyra-shell-topbar__actions > button,
+.weyra-shell-topbar__profile {
+  border-radius: 13px;
+  border-color: var(--weyra-line);
+  background: rgba(10, 25, 43, 0.6);
+}
+
+.weyra-shell-topbar__actions > button:hover {
+  border-color: var(--space-accent-line);
+  color: var(--space-accent);
+  background: var(--space-accent-softer);
+}
+
+.weyra-shell-topbar__context > i {
+  background: var(--weyra-success);
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.55);
+}
+
+/* ---------- Bouton Créer (identité Weyra, tous espaces) ---------- */
+.weyra-create-button {
+  border-radius: 13px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #38d6f5 120%);
+  box-shadow:
+    0 10px 26px rgba(139, 92, 246, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.weyra-create-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 34px rgba(139, 92, 246, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.weyra-create-menu__panel {
+  border-color: var(--weyra-line-strong);
+  border-radius: 18px;
+  background: rgba(6, 15, 28, 0.97);
+  backdrop-filter: blur(26px);
+}
+
+.weyra-create-menu__panel > button:hover {
+  background: var(--space-accent-softer);
+}
+
+.weyra-create-menu__panel > button > svg {
+  color: var(--space-accent);
+}
+
+/* ---------- Contenu & en-têtes de page ---------- */
+.weyra-shell-content {
+  scrollbar-color: color-mix(in srgb, var(--space-accent) 30%, transparent) transparent;
+}
+
+.weyra-page-heading > div > span,
+.home-section > header > div > span,
+.explore-results > header > div > span,
+.community-block > header > div > span,
+.admin-heading > div > span {
+  color: var(--space-accent);
+  letter-spacing: 0.14em;
+}
+
+.weyra-primary-action {
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  box-shadow:
+    0 10px 26px color-mix(in srgb, var(--space-accent) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.weyra-primary-action:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 34px color-mix(in srgb, var(--space-accent) 42%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.weyra-secondary-action {
+  border-radius: 12px;
+  border-color: var(--weyra-line-strong);
+  background: rgba(10, 25, 43, 0.6);
+}
+
+.weyra-secondary-action:hover {
+  border-color: var(--space-accent-line);
+  color: var(--space-accent);
+}
+
+/* ---------- Accueil ---------- */
+.home-situation {
+  border-block-color: var(--weyra-line);
+  background:
+    linear-gradient(100deg, rgba(3, 10, 20, 0.97) 0%, rgba(5, 17, 31, 0.88) 52%, rgba(10, 26, 46, 0.6) 100%),
+    radial-gradient(700px 300px at 82% 20%, rgba(34, 211, 238, 0.16), transparent 65%),
+    url("/media/observations/averse-route.webp") center 54% / cover;
+}
+
+.home-situation::after {
+  background: linear-gradient(90deg, transparent, var(--space-accent), transparent);
+  opacity: 0.55;
+}
+
+.home-situation__copy > span,
+.explore-featured > div:first-child > span {
+  color: var(--space-accent);
+  letter-spacing: 0.12em;
+}
+
+.home-situation__metrics > span,
+.home-social-pulse__metrics > span {
+  border-radius: 16px;
+  border: 1px solid var(--weyra-line);
+  background: rgba(8, 22, 39, 0.6);
+  backdrop-filter: blur(14px);
+}
+
+.home-social-pulse {
+  border-color: var(--weyra-line);
+  background:
+    radial-gradient(620px 220px at 12% 0%, rgba(139, 92, 246, 0.1), transparent 65%),
+    radial-gradient(620px 220px at 88% 100%, rgba(56, 214, 245, 0.08), transparent 65%),
+    rgba(6, 15, 28, 0.6);
+}
+
+.home-social-pulse > aside > div i {
+  box-shadow: 0 0 0 2px var(--weyra-night);
+}
+
+.home-community-strip > button,
+.home-feed > article,
+.home-event,
+.home-start,
+.home-quick-actions > button {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.home-community-strip > button:hover,
+.home-quick-actions > button:hover {
+  border-color: var(--space-accent-line);
+  background: var(--space-accent-softer);
+  transform: translateY(-2px);
+}
+
+.home-feed > article:hover {
+  border-color: var(--weyra-line-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 44px rgba(0, 4, 12, 0.35);
+}
+
+.home-section > header button,
+.home-event button,
+.home-start > button {
+  color: var(--space-accent);
+}
+
+/* ---------- Explorer ---------- */
+.explore-tools > label {
+  border-radius: 999px;
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.72);
+}
+
+.explore-tools > label:focus-within {
+  border-color: var(--space-accent-line);
+  box-shadow: 0 0 0 4px var(--space-accent-softer);
+}
+
+.explore-filters > button {
+  border-radius: 999px;
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+  transition: all 140ms ease;
+}
+
+.explore-filters > button.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  color: #06121f;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--space-accent) 30%, transparent);
+}
+
+.explore-featured {
+  border-color: var(--weyra-line);
+  background:
+    radial-gradient(680px 260px at 90% 0%, rgba(52, 211, 153, 0.12), transparent 62%),
+    rgba(6, 15, 28, 0.6);
+}
+
+.community-card {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.6);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.community-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--community-accent, var(--space-accent)) 45%, transparent);
+  box-shadow: 0 22px 52px rgba(0, 4, 12, 0.42);
+}
+
+.community-card__visual span {
+  background: linear-gradient(180deg, transparent 30%, rgba(3, 10, 20, 0.88));
+}
+
+.community-card footer button:not(.is-joined) {
+  border-color: var(--space-accent-line);
+  color: var(--space-accent);
+}
+
+.community-card footer button.is-joined {
+  border-color: color-mix(in srgb, var(--weyra-success) 45%, transparent);
+  color: var(--weyra-success);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+/* ---------- Fiches latérales (sheet) ---------- */
+.weyra-sheet {
+  border-color: var(--weyra-line-strong);
+  background: rgba(5, 13, 24, 0.98);
+  box-shadow: -30px 0 80px rgba(0, 4, 12, 0.55);
+}
+
+.weyra-sheet > header > div > span {
+  color: var(--space-accent);
+  letter-spacing: 0.14em;
+}
+
+.community-create__progress i.is-active {
+  background: linear-gradient(90deg, var(--space-accent), var(--space-accent-2));
+  box-shadow: 0 0 12px var(--space-accent-glow);
+}
+
+.community-create__templates > button,
+.community-create__access > button {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.community-create__templates > button.is-active,
+.community-create__access > button.is-active {
+  border-color: var(--space-accent-line);
+  background: var(--space-accent-soft);
+}
+
+.community-create__access > button.is-active > svg {
+  color: var(--space-accent);
+}
+
+.weyra-sheet footer button:last-child {
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  color: #fff;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--space-accent) 32%, transparent);
+}
+
+/* ---------- Messages ---------- */
+.messages-list {
+  border-right-color: var(--weyra-line);
+  background: rgba(4, 12, 22, 0.6);
+}
+
+.messages-list > header > button {
+  border-color: var(--weyra-line);
+  background: rgba(10, 25, 43, 0.6);
+}
+
+.messages-list > header > button:hover,
+.messages-list label:focus-within {
+  border-color: var(--space-accent-line);
+}
+
+.messages-list__filters > button.is-active {
+  background: var(--space-accent-soft);
+  color: var(--space-accent);
+}
+
+.messages-list__items > button {
+  transition: background 140ms ease;
+}
+
+.messages-list__items > button:hover {
+  background: rgba(140, 190, 230, 0.05);
+}
+
+.messages-list__items > button.is-active {
+  background: var(--space-accent-soft);
+}
+
+.messages-list__items > button.is-active > i,
+.messages-list__items > button > i {
+  background: linear-gradient(135deg, #f472b6, #fb7185);
+  box-shadow: 0 3px 10px rgba(244, 114, 182, 0.4);
+}
+
+.message-thread__history > article > div {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.72);
+}
+
+.message-thread__history > article.is-mine > div {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--space-accent) 26%, transparent);
+}
+
+.message-thread__history > article.is-mine > div header b,
+.message-thread__history > article.is-mine > div header small,
+.message-thread__history > article.is-mine > div p {
+  color: #fff;
+}
+
+.message-composer {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.72);
+}
+
+.message-composer:focus-within {
+  border-color: var(--space-accent-line);
+  box-shadow: 0 0 0 4px var(--space-accent-softer);
+}
+
+.message-composer button[type="submit"] {
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--space-accent) 32%, transparent);
+}
+
+.message-request > span,
+.message-thread__empty > span {
+  border-color: var(--space-accent-line);
+  background: var(--space-accent-soft);
+  color: var(--space-accent);
+}
+
+.message-request div button:last-child {
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+}
+
+/* ---------- Notifications ---------- */
+.notifications-filters > button {
+  border-radius: 999px;
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.notifications-filters > button.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  color: #06121f;
+}
+
+.notifications-filters > button span {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.notification-row {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.5);
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.notification-row:hover {
+  border-color: var(--weyra-line-strong);
+  background: rgba(10, 25, 43, 0.7);
+  transform: translateX(2px);
+}
+
+.notification-row.is-read {
+  opacity: 0.62;
+}
+
+.notification-row__icon {
+  border-color: var(--weyra-line);
+  background: rgba(10, 25, 43, 0.7);
+  color: var(--weyra-text-muted);
+}
+
+.notification-row.is-critical .notification-row__icon {
+  border-color: rgba(251, 113, 133, 0.4);
+  background: rgba(251, 113, 133, 0.1);
+  color: var(--weyra-danger);
+}
+
+.notification-row.is-high .notification-row__icon {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.09);
+  color: var(--weyra-warning);
+}
+
+.notification-row.is-normal .notification-row__icon {
+  border-color: var(--space-accent-line);
+  background: var(--space-accent-softer);
+  color: var(--space-accent);
+}
+
+.notification-row > i {
+  background: var(--space-accent);
+  box-shadow: 0 0 10px var(--space-accent-glow);
+}
+
+.notification-priority,
+.notification-levels {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.notification-priority > header svg {
+  color: var(--space-accent);
+}
+
+.notification-priority > button:hover {
+  border-color: var(--space-accent-line);
+  color: var(--space-accent);
+}
+
+.notification-levels .is-critical svg { color: var(--weyra-danger); }
+.notification-levels .is-high svg { color: var(--weyra-warning); }
+.notification-levels .is-normal svg { color: var(--space-accent); }
+.notification-levels .is-low svg { color: var(--weyra-text-muted); }
+
+/* ---------- Expérience communauté ---------- */
+.community-experience {
+  background: var(--weyra-night);
+}
+
+.community-context-nav {
+  border-right-color: var(--weyra-line);
+  background: rgba(4, 12, 22, 0.72);
+}
+
+.community-context-nav__essential > button.is-active,
+.community-context-nav__sections section > button.is-active {
+  background: var(--space-accent-soft);
+  color: var(--weyra-text);
+}
+
+.community-context-nav__essential > button.is-active > svg,
+.community-context-nav__sections section > button.is-active > svg {
+  color: var(--space-accent);
+}
+
+.community-hero {
+  border-bottom-color: var(--weyra-line);
+}
+
+.community-hero::after {
+  background: linear-gradient(180deg, transparent 20%, rgba(3, 10, 20, 0.92));
+}
+
+.community-summary-band,
+.community-start-here,
+.community-block,
+.community-context-panel > section,
+.community-before-join {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.community-thread > article > div,
+.community-message-avatar + div {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.72);
+}
+
+.community-composer {
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.72);
+}
+
+.community-composer:focus-within {
+  border-color: var(--space-accent-line);
+  box-shadow: 0 0 0 4px var(--space-accent-softer);
+}
+
+.community-space-header {
+  border-bottom-color: var(--weyra-line);
+  background: rgba(4, 12, 22, 0.6);
+  backdrop-filter: blur(18px);
+}
+
+.community-favorite-fab {
+  background: linear-gradient(135deg, var(--space-accent), var(--space-accent-2));
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--space-accent) 36%, transparent);
+}
+
+.community-mobile-header,
+.community-mobile-tabs {
+  border-color: var(--weyra-line);
+  background: rgba(4, 12, 22, 0.86);
+  backdrop-filter: blur(20px);
+}
+
+.community-mobile-tabs > button.is-active {
+  color: var(--space-accent);
+  background: var(--space-accent-soft);
+}
+
+/* ---------- Navigation mobile ---------- */
+.weyra-mobile-nav {
+  border-top: 1px solid var(--weyra-line);
+  background: rgba(4, 12, 22, 0.88);
+  backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: 0 -16px 44px rgba(0, 4, 12, 0.4);
+}
+
+.weyra-mobile-nav button {
+  color: #6e879f;
+}
+
+.weyra-mobile-nav button.is-active {
+  color: var(--space-accent);
+  background: var(--space-accent-soft);
+}
+
+.weyra-mobile-create {
+  background: linear-gradient(135deg, #8b5cf6 0%, #38d6f5 120%);
+  box-shadow:
+    0 14px 34px rgba(139, 92, 246, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+/* ---------- Divers Spectrum ---------- */
+.social-load-more,
+.community-thread__older {
+  border-radius: 12px;
+  border-color: var(--weyra-line);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.social-load-more:hover,
+.community-thread__older:hover {
+  border-color: var(--space-accent-line);
+  background: var(--space-accent-softer);
+  color: var(--weyra-text);
+}
+
+.weyra-demo-chip {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--weyra-warning);
+}
+
+@media (max-width: 719px) {
+  .weyra-shell {
+    background:
+      radial-gradient(680px 380px at 85% -8%, var(--space-accent-softer), transparent 62%),
+      var(--weyra-night);
+  }
+}

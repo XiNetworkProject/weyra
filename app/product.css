@@ -4569,3 +4569,541 @@
     font-size: 29px;
   }
 }
+
+
+/* ============================================================
+   WEYRA SPECTRUM — couche produit (couche finale)
+   Cartes, boutons, modales, onboarding, réglages, apprentissage.
+   Hérite de --space-accent défini par .weyra-shell[data-space].
+   ============================================================ */
+
+/* ---------- Tokens produit ---------- */
+:root {
+  --product-bg: #030a14;
+  --product-bg-raised: #050f1d;
+  --product-panel: rgba(6, 15, 28, 0.95);
+  --product-panel-soft: rgba(9, 22, 38, 0.8);
+  --product-border: rgba(140, 190, 230, 0.10);
+  --product-border-strong: rgba(140, 200, 240, 0.20);
+  --product-text: #eef5fc;
+  --product-muted: #7d95ad;
+  --product-dim: #61778e;
+  --product-cyan: #38d6f5;
+  --product-blue: #60a5fa;
+  --product-violet: #8b5cf6;
+  --product-amber: #fbbf24;
+  --product-danger: #fb7185;
+  --product-accent: var(--space-accent, #8b5cf6);
+  --product-accent-2: var(--space-accent-2, #38d6f5);
+  --product-accent-soft: color-mix(in srgb, var(--product-accent) 13%, transparent);
+  --product-accent-line: color-mix(in srgb, var(--product-accent) 38%, transparent);
+}
+
+.weyra-workspace,
+.weyra-onboarding,
+.product-view {
+  font-family: var(--weyra-font-body, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+.product-view h1,
+.product-view h2,
+.product-view h3,
+.weyra-onboarding h1 {
+  font-family: var(--weyra-font-display, "Space Grotesk", "Inter", sans-serif);
+  letter-spacing: -0.015em;
+}
+
+/* ---------- En-têtes de section ---------- */
+.product-section-heading > div > span {
+  color: var(--product-accent);
+  letter-spacing: 0.14em;
+}
+
+/* ---------- Boutons ---------- */
+.product-primary-button {
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--product-accent), var(--product-accent-2));
+  box-shadow:
+    0 10px 26px color-mix(in srgb, var(--product-accent) 30%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.product-primary-button:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 14px 34px color-mix(in srgb, var(--product-accent) 42%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.product-primary-button.is-complete {
+  color: #b7f5e3;
+  background: rgba(52, 211, 153, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.3);
+}
+
+.product-secondary-button {
+  border-radius: 12px;
+  border-color: var(--product-border-strong);
+  background: rgba(10, 25, 43, 0.55);
+  transition: border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.product-secondary-button:hover {
+  border-color: var(--product-accent-line);
+  color: var(--product-accent);
+}
+
+/* ---------- Segmented ---------- */
+.product-segmented {
+  border-radius: 999px;
+  border-color: var(--product-border);
+  background: rgba(6, 15, 28, 0.7);
+}
+
+.product-segmented button {
+  border-radius: 999px;
+  min-height: 32px;
+}
+
+.product-segmented button.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--product-accent), var(--product-accent-2));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--product-accent) 28%, transparent);
+}
+
+.product-segmented button i {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ---------- Switch & réglages ---------- */
+.product-switch > i {
+  border-radius: 999px;
+  border-color: rgba(140, 190, 230, 0.2);
+  background: rgba(10, 25, 43, 0.8);
+}
+
+.product-switch input:checked + i {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--product-accent), var(--product-accent-2));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--product-accent) 35%, transparent);
+}
+
+.product-switch input:checked + i span {
+  background: #fff;
+}
+
+.product-setting-row {
+  border-radius: 14px;
+  transition: background 140ms ease;
+}
+
+.product-setting-row:hover {
+  background: rgba(140, 190, 230, 0.04);
+}
+
+.product-select-row select {
+  border-radius: 10px;
+  border-color: var(--product-border-strong);
+  background: #081627;
+}
+
+.product-select-row select:focus {
+  border-color: var(--product-accent-line);
+  box-shadow: 0 0 0 3px var(--product-accent-soft);
+}
+
+/* ---------- Empty states / notices / avatars ---------- */
+.product-empty > span {
+  border-radius: 20px;
+  border: 1px solid var(--product-accent-line);
+  background: var(--product-accent-soft);
+  color: var(--product-accent);
+}
+
+.product-demo-notice {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(251, 191, 36, 0.07);
+}
+
+.product-demo-notice i {
+  background: var(--product-amber);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.product-author-mark {
+  border-radius: 14px;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--author-accent, #8b5cf6) 42%, #0a1a2e), #081627);
+  border: 1px solid color-mix(in srgb, var(--author-accent, #8b5cf6) 45%, transparent);
+}
+
+.community-mark {
+  border-radius: 14px;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--community-accent, #8b5cf6) 46%, #0a1a2e), #081627);
+  border: 1px solid color-mix(in srgb, var(--community-accent, #8b5cf6) 50%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--community-accent, #8b5cf6) 22%, transparent);
+}
+
+/* ---------- Modales ---------- */
+.product-modal-layer__backdrop {
+  background: rgba(2, 6, 12, 0.68);
+  backdrop-filter: blur(10px);
+}
+
+.product-modal {
+  border-radius: 22px;
+  border-color: var(--product-border-strong);
+  background: linear-gradient(165deg, rgba(10, 24, 42, 0.97), rgba(4, 11, 21, 0.97));
+  box-shadow: 0 40px 110px rgba(0, 4, 12, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.product-modal > header span {
+  color: var(--product-accent);
+  letter-spacing: 0.14em;
+}
+
+.product-modal input,
+.product-modal textarea {
+  border-radius: 12px;
+  border-color: var(--product-border);
+  background: rgba(3, 10, 20, 0.6);
+}
+
+.product-modal input:focus,
+.product-modal textarea:focus {
+  border-color: var(--product-accent-line);
+  box-shadow: 0 0 0 4px var(--product-accent-soft);
+}
+
+/* ---------- Posts & flux ---------- */
+.product-post {
+  border-radius: 20px;
+  border-color: var(--product-border);
+  background: var(--product-panel-soft);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.product-post:hover {
+  border-color: var(--product-border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 22px 52px rgba(0, 4, 12, 0.4);
+}
+
+.product-post__media {
+  border-radius: 14px;
+}
+
+.product-post__phenomena > span {
+  border-radius: 999px;
+}
+
+.product-post__actions button {
+  border-radius: 999px;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.product-post__actions button:hover {
+  color: var(--product-accent);
+  background: var(--product-accent-soft);
+}
+
+.product-comments > article {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-comments__more {
+  color: var(--product-accent);
+}
+
+.product-radius button {
+  border-radius: 999px;
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-radius button.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--product-accent), var(--product-accent-2));
+  color: #fff;
+}
+
+/* ---------- Autour / météo ---------- */
+.product-around-hero__weather,
+.product-around-hero__nowcast,
+.product-around-hero__metrics > span {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.6);
+  backdrop-filter: blur(14px);
+}
+
+.product-around-hero__weather {
+  background:
+    radial-gradient(320px 200px at 80% 0%, rgba(56, 214, 245, 0.12), transparent 65%),
+    rgba(8, 22, 39, 0.6);
+}
+
+.product-around-hero__nowcast {
+  background:
+    radial-gradient(320px 200px at 20% 100%, rgba(139, 92, 246, 0.14), transparent 65%),
+    rgba(8, 22, 39, 0.6);
+}
+
+.product-around-signals,
+.product-around-context > section {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-around-signals article:hover {
+  border-color: var(--product-border-strong);
+}
+
+/* ---------- Activité ---------- */
+.product-activity-timeline > button {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.5);
+  transition: border-color 150ms ease, transform 150ms ease, background 150ms ease;
+}
+
+.product-activity-timeline > button:hover {
+  border-color: var(--product-border-strong);
+  background: rgba(10, 25, 43, 0.7);
+  transform: translateX(2px);
+}
+
+.product-activity-timeline > button > i {
+  background: var(--product-accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--product-accent) 55%, transparent);
+}
+
+/* ---------- Alertes ---------- */
+.product-alert-status {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-alert-status.is-enabled {
+  border-color: rgba(52, 211, 153, 0.35);
+  background:
+    radial-gradient(400px 160px at 90% 0%, rgba(52, 211, 153, 0.1), transparent 65%),
+    rgba(8, 22, 39, 0.55);
+}
+
+.product-alert-settings,
+.product-alert-preview {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-alert-phenomena > button.is-active {
+  border-color: color-mix(in srgb, var(--alert-color, #38d6f5) 55%, transparent);
+  background: color-mix(in srgb, var(--alert-color, #38d6f5) 14%, transparent);
+}
+
+/* ---------- Réglages ---------- */
+.product-settings-grid > section {
+  border-radius: 20px;
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-settings-grid > section > header > span {
+  border-radius: 14px;
+  border: 1px solid var(--product-accent-line);
+  background: var(--product-accent-soft);
+  color: var(--product-accent);
+}
+
+.product-settings-danger {
+  border-color: rgba(251, 113, 133, 0.25) !important;
+}
+
+.product-settings-danger > div > button.is-armed {
+  background: linear-gradient(135deg, #fb7185, #f43f5e);
+  color: #fff;
+}
+
+/* ---------- Profil ---------- */
+.product-account-status {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-account-status.is-authenticated {
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.product-account-status > span {
+  border-radius: 14px;
+  border: 1px solid var(--product-accent-line);
+  background: var(--product-accent-soft);
+  color: var(--product-accent);
+}
+
+.product-profile-hero {
+  border-radius: 24px;
+  border-color: var(--product-border);
+  background:
+    radial-gradient(560px 240px at 12% 0%, color-mix(in srgb, var(--profile-accent, #a78bfa) 16%, transparent), transparent 62%),
+    rgba(8, 22, 39, 0.6);
+}
+
+.product-profile-hero__avatar {
+  border-radius: 26px;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--profile-accent, #a78bfa) 55%, #0a1a2e), #081627);
+  border: 1px solid color-mix(in srgb, var(--profile-accent, #a78bfa) 55%, transparent);
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--profile-accent, #a78bfa) 28%, transparent);
+}
+
+.product-profile-hero__identity > div > span {
+  border-radius: 999px;
+  border-color: var(--product-border-strong);
+}
+
+.product-profile-hero__stats > span {
+  border-radius: 16px;
+  border: 1px solid var(--product-border);
+  background: rgba(6, 15, 28, 0.55);
+}
+
+.product-badges article {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.product-badges article:hover {
+  border-color: var(--product-border-strong);
+  transform: translateY(-2px);
+}
+
+.product-badges article i {
+  border-radius: 13px;
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  background: rgba(251, 191, 36, 0.09);
+  color: var(--product-amber);
+}
+
+.product-badges article.is-locked {
+  opacity: 0.55;
+}
+
+.product-profile-grid > article,
+.product-notebook article,
+.product-saved-list > article {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.product-profile-grid > article:hover,
+.product-saved-list > article:hover {
+  border-color: var(--product-border-strong);
+  transform: translateY(-2px);
+}
+
+/* ---------- Rooms ---------- */
+.product-room-card {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.product-room-card:hover {
+  border-color: var(--product-accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 48px rgba(0, 4, 12, 0.4);
+}
+
+.product-room-hero,
+.product-room-context > section {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-room-thread article > div {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.7);
+}
+
+/* ---------- Apprendre ---------- */
+.product-lesson-card {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+  transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.product-lesson-card:hover {
+  border-color: var(--product-accent-line);
+  transform: translateY(-3px);
+  box-shadow: 0 22px 52px rgba(0, 4, 12, 0.42);
+}
+
+.product-lesson-hero {
+  border-color: var(--product-border);
+}
+
+.product-learning-progress {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.product-quiz button.is-active,
+.product-quiz button.is-correct {
+  border-color: var(--product-accent-line);
+  background: var(--product-accent-soft);
+}
+
+/* ---------- Onboarding ---------- */
+.weyra-onboarding__visual > div {
+  background:
+    linear-gradient(200deg, rgba(3, 10, 20, 0.1) 30%, rgba(3, 10, 20, 0.88)),
+    radial-gradient(480px 320px at 70% 20%, rgba(139, 92, 246, 0.2), transparent 62%);
+}
+
+.weyra-onboarding__visual header b {
+  font-family: var(--weyra-font-display, "Space Grotesk", sans-serif);
+  background: linear-gradient(120deg, #fff 30%, #b9cbde);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.weyra-onboarding__visual header span {
+  color: var(--weyra-sky, #38d6f5);
+  letter-spacing: 0.16em;
+}
+
+.weyra-onboarding__copy > span {
+  color: var(--weyra-aurora, #a78bfa);
+  letter-spacing: 0.14em;
+}
+
+.weyra-onboarding__copy > div > span {
+  border-color: var(--product-border);
+  background: rgba(8, 22, 39, 0.55);
+}
+
+.weyra-onboarding__copy > div > span svg {
+  color: #34d399;
+}
+
+.weyra-onboarding__dots i {
+  background: rgba(140, 190, 230, 0.2);
+}
+
+.weyra-onboarding__dots i.is-done {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+.weyra-onboarding__dots i.is-active {
+  background: linear-gradient(90deg, #8b5cf6, #38d6f5);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+}
