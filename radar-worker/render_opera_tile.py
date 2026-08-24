@@ -28,7 +28,7 @@ else:
 TILE_SIZE = 256
 GUTTER_PIXELS = 2
 TARGET_CRS = "EPSG:3857"
-TILE_RENDER_VERSION = "v4a"
+TILE_RENDER_VERSION = "v5"
 STRONG_ECHO_DBZH = 35.0
 
 WEYRA_DBZH_DISPLAY_V1 = {
@@ -144,6 +144,34 @@ WEYRA_DBZH_DISPLAY_V4A = {
     ],
 }
 
+WEYRA_DBZH_DISPLAY_V5 = {
+    **WEYRA_DBZH_DISPLAY_V3,
+    "displayVersion": "v5",
+    # Palette « néon nuit » : la pluie devient lumineuse sur le fond bleu très profond.
+    # Bleu saturé -> cyan -> vert -> jaune -> orange -> rose -> magenta pour les noyaux.
+    "thresholdDbzh": 8.0,
+    "alphaRampDbzh": [8.0, 14.0],
+    "stops": [
+        [8.0, 12, 80, 200, 0],
+        [11.0, 10, 110, 225, 36],
+        [14.0, 8, 145, 240, 64],
+        [18.0, 15, 185, 235, 92],
+        [22.0, 25, 220, 210, 120],
+        [26.0, 35, 230, 165, 148],
+        [30.0, 80, 235, 110, 172],
+        [33.0, 150, 240, 75, 192],
+        [36.0, 215, 240, 60, 208],
+        [39.0, 250, 220, 50, 218],
+        [43.0, 255, 175, 45, 226],
+        [47.0, 255, 120, 45, 234],
+        [50.0, 252, 70, 80, 240],
+        [54.0, 240, 50, 150, 245],
+        [58.0, 225, 55, 210, 250],
+        [63.0, 205, 70, 240, 252],
+        [70.0, 170, 90, 250, 255],
+    ],
+}
+
 DISPLAY_CONFIGS = {
     "v1": WEYRA_DBZH_DISPLAY_V1,
     "v2": WEYRA_DBZH_DISPLAY_V2,
@@ -151,7 +179,11 @@ DISPLAY_CONFIGS = {
     "v3b": WEYRA_DBZH_DISPLAY_V3B,
     "v3c": WEYRA_DBZH_DISPLAY_V3C,
     "v4a": WEYRA_DBZH_DISPLAY_V4A,
+    "v5": WEYRA_DBZH_DISPLAY_V5,
 }
+
+# Versions that use the smooth, coverage-feathered, strong-echo-preserving pipeline.
+SMOOTH_DISPLAY_VERSIONS = {"v4a", "v5"}
 
 
 def utc_now() -> str:
@@ -199,8 +231,11 @@ def colorize(
 
 
 def display_smoothing_radius(z: int, display_version: str) -> float:
-    if display_version != "v4a":
+    if display_version not in SMOOTH_DISPLAY_VERSIONS:
         return 0.0
+    if display_version == "v5":
+        # Neon look: slightly wider feather so echoes glow instead of looking pixel-sharp.
+        return 0.45 if z <= 6 else 0.7
     return 0.35 if z <= 6 else 0.55
 
 
@@ -239,7 +274,7 @@ def resampling_for_zoom(z: int, display_version: str) -> tuple[Any, str, str]:
     if Resampling is None:
         raise RuntimeError("rasterio Resampling is unavailable.")
     if z <= 6:
-        if display_version in {"v3", "v3b", "v3c", "v4a"}:
+        if display_version in {"v3", "v3b", "v3c", "v4a", "v5"}:
             return Resampling.average, "average-valid-dbzh-strong-max>=35", (
                 "At broad zooms, valid DBZH pixels are averaged, with real maxima >=35 dBZ preserved so intense cores do not disappear in the average."
             )
@@ -254,7 +289,7 @@ def resampling_for_zoom(z: int, display_version: str) -> tuple[Any, str, str]:
 def alpha_resampling_for_zoom(z: int, display_version: str) -> tuple[Any, str]:
     if Resampling is None:
         raise RuntimeError("rasterio Resampling is unavailable.")
-    if display_version != "v4a":
+    if display_version not in SMOOTH_DISPLAY_VERSIONS:
         return Resampling.nearest, "nearest-alpha"
     if z <= 6:
         return Resampling.average, "average-coverage-alpha"
@@ -377,7 +412,7 @@ def render_tile(
             init_dest_nodata=True,
         )
 
-        if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
+        if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a", "v5"} and z <= 6:
             reproject(
                 source=rasterio.band(source, 1),
                 destination=destination_strong,
@@ -409,7 +444,7 @@ def render_tile(
         )
 
         inner = np.s_[GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE, GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE]
-        if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
+        if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a", "v5"} and z <= 6:
             strong_mask = (
                 np.isfinite(destination_strong)
                 & (destination_strong != nodata)
@@ -419,7 +454,7 @@ def render_tile(
                 destination = np.where(strong_mask, destination_strong, destination)
                 strong_echo_preservation_used = True
         valid_full = (destination_mask > 0.01) & np.isfinite(destination) & (destination != nodata)
-        coverage = destination_mask if display_config["displayVersion"] == "v4a" else None
+        coverage = destination_mask if display_config["displayVersion"] in SMOOTH_DISPLAY_VERSIONS else None
         rgba_full, visible_full = colorize(destination, valid_full, display_config, coverage)
         smoothing_radius = display_smoothing_radius(z, display_config["displayVersion"])
         rgba_full = smooth_rgba(rgba_full, smoothing_radius)

@@ -15,7 +15,7 @@ import {
   IconWind,
 } from "@/components/atlas/icons";
 
-export const OPERA_TILE_STYLE = "v4a";
+export const OPERA_TILE_STYLE = "v5";
 
 export type ObservationCategoryGroup = "précipitations" | "orage" | "air" | "impacts" | "ambiance";
 

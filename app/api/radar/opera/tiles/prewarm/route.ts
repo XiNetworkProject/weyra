@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       timestamps,
       viewport,
       paddingTiles: typeof body.paddingTiles === "number" ? body.paddingTiles : 1,
-      style: typeof body.style === "string" ? body.style : "v4a",
+      style: typeof body.style === "string" ? body.style : "v5",
     });
 
     // The pack detail route serves only files that already sit in the pack directory, so the

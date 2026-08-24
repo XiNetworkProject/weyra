@@ -1,43 +1,42 @@
 :root {
-  --atlas-ink: #f4f7fd;
-  --atlas-muted: #9fadc3;
-  --atlas-muted-2: #6c7d96;
-  --atlas-line: rgba(209, 230, 255, .105);
-  --atlas-line-soft: rgba(209, 230, 255, .065);
-  --atlas-panel: rgba(7, 15, 29, .66);
-  --atlas-panel-soft: rgba(7, 15, 29, .52);
-  --atlas-panel-strong: rgba(8, 16, 30, .90);
+  --atlas-ink: #f2f6fd;
+  --atlas-muted: #94a7c0;
+  --atlas-muted-2: #637590;
+  --atlas-line: rgba(150, 190, 235, .12);
+  --atlas-line-soft: rgba(150, 190, 235, .065);
+  --atlas-panel: rgba(4, 10, 20, .70);
+  --atlas-panel-soft: rgba(4, 10, 20, .54);
+  --atlas-panel-strong: rgba(4, 9, 18, .93);
   --atlas-violet: #8b5cf6;
   --atlas-violet-soft: #a78bfa;
-  --atlas-blue: #6aa8ff;
-  --atlas-cyan: #61f1dc;
+  --atlas-blue: #5f9dff;
+  --atlas-cyan: #54d7ff;
   --atlas-pink: #f96db4;
   --atlas-yellow: #ffd46a;
   --atlas-green: #4ade80;
   --atlas-red: #ff5a5f;
-  --atlas-grad: linear-gradient(135deg, #7c5cff, #c26bff);
-  --atlas-shell-blur: blur(22px) saturate(1.2);
-  --atlas-shadow: 0 18px 52px rgba(0, 0, 0, .34);
-  --atlas-shadow-soft: 0 10px 30px rgba(0, 0, 0, .24);
+  --atlas-grad: linear-gradient(135deg, #7c5cff, #a26bff);
+  --atlas-shell-blur: blur(20px) saturate(1.12);
+  --atlas-shadow: 0 16px 44px rgba(0, 0, 0, .42);
+  --atlas-shadow-soft: 0 8px 26px rgba(0, 0, 0, .30);
 }
 
 * { box-sizing: border-box; }
-html, body { min-width: 320px; min-height: 100%; margin: 0; background: #04101d; color: var(--atlas-ink); }
+html, body { min-width: 320px; min-height: 100%; margin: 0; background: #02060e; color: var(--atlas-ink); }
 body { overflow: hidden; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 button, input, textarea { font: inherit; }
 button { border: 0; cursor: pointer; }
 button svg, .atlas-search svg { display: block; }
 
-.atlas-app { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: #061526; }
+.atlas-app { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: #02070f; }
 .atlas-app::after {
   content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none;
   background:
-    radial-gradient(circle at 54% 48%, rgba(55, 126, 180, .08), transparent 34%),
-    linear-gradient(90deg, rgba(2, 11, 21, .18), transparent 24%, transparent 76%, rgba(2, 11, 21, .12)),
-    linear-gradient(0deg, rgba(2, 10, 19, .32), transparent 28%);
+    linear-gradient(90deg, rgba(1, 6, 13, .22), transparent 22%, transparent 78%, rgba(1, 6, 13, .16)),
+    linear-gradient(0deg, rgba(1, 5, 11, .38), transparent 26%);
   mix-blend-mode: multiply;
 }
-.atlas-map { position: absolute; z-index: 1; inset: 0; background: #071827; }
+.atlas-map { position: absolute; z-index: 1; inset: 0; background: #02070f; }
 .atlas-map .maplibregl-ctrl-attrib { background: rgba(4, 12, 22, .66) !important; color: #c2cfdf !important; font-size: 10px !important; }
 .atlas-map .maplibregl-ctrl-attrib a { color: #b7a4ff !important; }
 .atlas-map .maplibregl-ctrl-bottom-right { right: 20px; bottom: 10px; }
@@ -217,7 +216,7 @@ button svg, .atlas-search svg { display: block; }
 
 .atlas-radar-legend { position: absolute; z-index: 50; bottom: 116px; left: 30px; width: 286px; padding: 12px 14px 11px; border: 1px solid var(--atlas-line); border-radius: 15px; background: rgba(7, 15, 29, .60); box-shadow: var(--atlas-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, .04); backdrop-filter: var(--atlas-shell-blur); }
 .atlas-radar-legend b { color: #e8eefb; font-size: 11px; font-weight: 720; }
-.atlas-radar-legend > div { height: 7px; margin-top: 9px; border-radius: 99px; background: linear-gradient(90deg, rgba(8, 107, 220, .12), rgba(0, 143, 232, .42) 18%, rgba(0, 205, 229, .62) 36%, rgba(0, 216, 166, .72) 52%, rgba(101, 210, 85, .78) 63%, rgba(244, 219, 59, .88) 74%, rgba(255, 73, 63, .92) 88%, rgba(213, 59, 209, .94)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .055); }
+.atlas-radar-legend > div { height: 7px; margin-top: 9px; border-radius: 99px; background: linear-gradient(90deg, rgba(12, 80, 200, 0), rgba(10, 110, 225, .55) 14%, rgba(15, 185, 235, .72) 30%, rgba(35, 230, 165, .8) 44%, rgba(150, 240, 75, .85) 56%, rgba(250, 220, 50, .88) 66%, rgba(255, 120, 45, .92) 76%, rgba(240, 50, 150, .94) 88%, rgba(205, 70, 240, .96)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .055); }
 .atlas-radar-legend small { display: flex; justify-content: space-between; margin-top: 8px; color: #9fadc3; font-size: 9.5px; font-weight: 560; }
 
 /* Timeline */
@@ -452,14 +451,14 @@ button svg, .atlas-search svg { display: block; }
    A map-first HUD shared by desktop and mobile. The selectors are scoped to
    the V2 shell so Radar Lab and the server-side radar surfaces stay isolated. */
 .atlas-app[data-ui-shell="v2"] {
-  --hud-bg: rgba(4, 13, 27, .72);
-  --hud-bg-strong: rgba(4, 13, 27, .92);
-  --hud-line: rgba(156, 199, 236, .16);
-  --hud-line-hot: rgba(111, 208, 255, .34);
-  --hud-ink: #f3f8ff;
-  --hud-muted: #8ea5ba;
+  --hud-bg: rgba(3, 9, 18, .76);
+  --hud-bg-strong: rgba(3, 8, 16, .94);
+  --hud-line: rgba(150, 190, 230, .13);
+  --hud-line-hot: rgba(148, 163, 255, .32);
+  --hud-ink: #f2f7ff;
+  --hud-muted: #8ba0b8;
   --hud-cyan: #54d7ff;
-  --hud-violet: #9a6cff;
+  --hud-violet: #8b5cf6;
   --hud-green: #57e1a0;
   --hud-ease: cubic-bezier(.22, .72, .18, 1);
   height: 100dvh;
@@ -473,8 +472,8 @@ button svg, .atlas-search svg { display: block; }
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(1, 8, 18, .42) 0, transparent 18%, transparent 69%, rgba(1, 7, 16, .58) 100%),
-    linear-gradient(90deg, rgba(1, 8, 18, .22), transparent 20%, transparent 80%, rgba(1, 8, 18, .18));
+    linear-gradient(180deg, rgba(1, 5, 12, .46) 0, transparent 16%, transparent 72%, rgba(1, 5, 11, .6) 100%),
+    linear-gradient(90deg, rgba(1, 5, 12, .24), transparent 20%, transparent 80%, rgba(1, 5, 12, .2));
 }
 .atlas-app[data-ui-shell="v2"]::after {
   opacity: .52;
@@ -535,9 +534,9 @@ button svg, .atlas-search svg { display: block; }
   transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
 }
 .atlas-app[data-ui-shell="v2"] .atlas-search > input:focus {
-  border-color: rgba(84, 215, 255, .42);
-  background: rgba(6, 18, 34, .90);
-  box-shadow: 0 0 0 4px rgba(84, 215, 255, .08), 0 16px 42px rgba(0, 0, 0, .32);
+  border-color: rgba(167, 139, 250, .45);
+  background: rgba(4, 12, 24, .92);
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, .10), 0 16px 42px rgba(0, 0, 0, .32);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-search__icon { color: #a8c0d5; }
 .atlas-app[data-ui-shell="v2"] .atlas-search > kbd {
@@ -592,8 +591,8 @@ button svg, .atlas-search svg { display: block; }
 }
 .atlas-app[data-ui-shell="v2"] .atlas-round-button:hover {
   color: #fff;
-  border-color: rgba(84, 215, 255, .32);
-  background: rgba(13, 35, 57, .80);
+  border-color: rgba(167, 139, 250, .34);
+  background: rgba(16, 26, 46, .82);
   transform: translateY(-2px);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-menu__panel {
@@ -628,17 +627,7 @@ button svg, .atlas-search svg { display: block; }
   left: 18px;
   right: 18px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(84, 215, 255, .60), rgba(154, 108, 255, .55), transparent);
-}
-.atlas-app[data-ui-shell="v2"] .atlas-weather-card::after {
-  content: "";
-  position: absolute;
-  width: 1px;
-  height: 112px;
-  right: 0;
-  top: 38px;
-  background: linear-gradient(180deg, transparent, rgba(84, 215, 255, .25), rgba(154, 108, 255, .18), transparent);
-  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(190, 214, 240, .22), transparent);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-weather-card__header h1 {
   color: var(--hud-ink);
@@ -650,10 +639,11 @@ button svg, .atlas-search svg { display: block; }
 .atlas-app[data-ui-shell="v2"] .atlas-weather-card__icon {
   width: 58px;
   height: 58px;
-  border: 1px solid rgba(126, 185, 255, .12);
+  border: 1px solid rgba(150, 190, 230, .12);
   border-radius: 17px;
-  background: linear-gradient(145deg, rgba(93, 105, 255, .24), rgba(42, 155, 213, .08));
-  box-shadow: 0 12px 30px rgba(20, 71, 135, .22), inset 0 1px 0 rgba(255, 255, 255, .08);
+  background: linear-gradient(145deg, rgba(74, 120, 190, .20), rgba(24, 52, 88, .10));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+  animation: none;
 }
 .atlas-app[data-ui-shell="v2"] .atlas-weather-card__temp {
   color: #fff;
@@ -661,6 +651,7 @@ button svg, .atlas-search svg { display: block; }
   letter-spacing: 0;
   background: none;
   -webkit-text-fill-color: currentColor;
+  text-shadow: none;
 }
 .atlas-app[data-ui-shell="v2"] .atlas-weather-card__condition { color: #cfdfed; }
 .atlas-app[data-ui-shell="v2"] .atlas-weather-card__stats > div {
@@ -831,17 +822,21 @@ button svg, .atlas-search svg { display: block; }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__play {
   width: 62px;
   height: 62px;
-  color: #ddd4ff;
-  border: 1px solid rgba(160, 126, 255, .32);
-  background: linear-gradient(150deg, rgba(19, 24, 47, .90), rgba(6, 15, 29, .82));
-  box-shadow: 0 18px 42px rgba(0, 0, 0, .34), 0 0 0 5px rgba(133, 91, 255, .06), inset 0 1px 0 rgba(255, 255, 255, .07);
+  color: #fff;
+  border: 1px solid rgba(196, 171, 255, .42);
+  background: linear-gradient(150deg, #8b5cf6, #6d3ee0);
+  box-shadow: 0 14px 34px rgba(80, 50, 190, .42), inset 0 1px 0 rgba(255, 255, 255, .18);
   font-size: 21px;
-  transition: transform .2s var(--hud-ease), box-shadow .25s ease, border-color .25s ease;
+  transition: transform .2s var(--hud-ease), box-shadow .25s ease, border-color .25s ease, filter .2s ease;
+}
+.atlas-app[data-ui-shell="v2"] .atlas-timeline__play:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline.is-playing .atlas-timeline__play {
   color: #fff;
-  border-color: rgba(181, 143, 255, .58);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, .34), 0 0 0 7px rgba(133, 91, 255, .10), 0 0 28px rgba(133, 91, 255, .24), inset 0 1px 0 rgba(255, 255, 255, .10);
+  border-color: rgba(206, 186, 255, .62);
+  box-shadow: 0 14px 34px rgba(80, 50, 190, .46), 0 0 0 6px rgba(139, 92, 246, .14), 0 0 26px rgba(139, 92, 246, .30), inset 0 1px 0 rgba(255, 255, 255, .20);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__bar {
   min-height: 58px;
@@ -865,13 +860,13 @@ button svg, .atlas-search svg { display: block; }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__track::before { height: 2px; background: rgba(154, 192, 224, .13); }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__track > i {
   height: 3px;
-  background: linear-gradient(90deg, #6b5cff, #a864ff 58%, #55d7ff);
-  box-shadow: 0 0 14px rgba(132, 92, 255, .48), 0 0 7px rgba(84, 215, 255, .24);
+  background: linear-gradient(90deg, #6d3ee0, #8b5cf6);
+  box-shadow: 0 0 14px rgba(139, 92, 246, .48);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__bubble {
-  border: 1px solid rgba(255, 255, 255, .16);
-  background: linear-gradient(145deg, #7d63f8, #b068f2);
-  box-shadow: 0 7px 20px rgba(107, 73, 212, .48);
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: linear-gradient(145deg, #8b5cf6, #6d3ee0);
+  box-shadow: 0 7px 20px rgba(90, 60, 200, .5);
 }
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__step,
 .atlas-app[data-ui-shell="v2"] .atlas-timeline__latest,

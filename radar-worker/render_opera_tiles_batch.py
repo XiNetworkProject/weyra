@@ -125,7 +125,7 @@ def render_one_tile(
         init_dest_nodata=True,
     )
 
-    if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
+    if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a", "v5"} and z <= 6:
         reproject(
             source=rasterio.band(source, 1),
             destination=destination_strong,
@@ -153,7 +153,7 @@ def render_one_tile(
     )
 
     inner = np.s_[GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE, GUTTER_PIXELS:GUTTER_PIXELS + TILE_SIZE]
-    if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a"} and z <= 6:
+    if display_config["displayVersion"] in {"v3", "v3b", "v3c", "v4a", "v5"} and z <= 6:
         strong_mask = (
             np.isfinite(destination_strong)
             & (destination_strong != nodata)
@@ -164,7 +164,7 @@ def render_one_tile(
             strong_echo_preservation_used = True
 
     valid_full = (destination_mask > 0.01) & np.isfinite(destination) & (destination != nodata)
-    coverage = destination_mask if display_config["displayVersion"] == "v4a" else None
+    coverage = destination_mask if display_config["displayVersion"] in {"v4a", "v5"} else None
     rgba_full, visible_full = colorize(destination, valid_full, display_config, coverage)
     smoothing_radius = display_smoothing_radius(z, display_config["displayVersion"])
     rgba_full = smooth_rgba(rgba_full, smoothing_radius)

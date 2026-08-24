@@ -1492,8 +1492,8 @@ export default function AtlasApp() {
         </div>
       </section>
 
-      <section className={`atlas-radar-legend${radarVisible ? "" : " is-hidden"}`} aria-label="Échelle de réflectivité radar">
-        <b>Réflectivité radar (dBZ)</b><div /><small><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>60+</span></small>
+      <section className={`atlas-radar-legend${radarVisible ? "" : " is-hidden"}`} aria-label="Échelle d’intensité des précipitations">
+        <b>Intensité radar (mm/h)</b><div /><small><span>0,1</span><span>1</span><span>3</span><span>10</span><span>30</span><span>100+</span></small>
       </section>
 
       <section className={`atlas-timeline atlas-timeline--v3${operaPlaying ? " is-playing" : ""}`} aria-label="Animation radar OPERA">

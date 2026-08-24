@@ -21,7 +21,7 @@ function sanitizeTileError(error: unknown) {
 export async function GET(_request: Request, context: RouteContext) {
   const startedAt = Date.now();
   let tileLabel = "unknown";
-  let styleLabel = "v4a";
+  let styleLabel = "v5";
 
   try {
     const request = _request;

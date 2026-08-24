@@ -63,7 +63,7 @@ const CLUSTER_LABEL = "weyra-observation-cluster-label";
 const DOT_HALO = "weyra-observation-dot-halo";
 const DOT_CIRCLE = "weyra-observation-dot";
 const OPERA_RADAR_SLOTS: RadarSlot[] = ["a", "b"];
-const OPERA_RADAR_OPACITY = 0.82;
+const OPERA_RADAR_OPACITY = 0.88;
 // Overview tiles come from published scan packs: static WebP, always complete for a ready pack.
 const OPERA_OVERVIEW_MIN_ZOOM = 3;
 const OPERA_OVERVIEW_MAX_ZOOM = 6;
@@ -76,7 +76,7 @@ const OPERA_DETAIL_HANDOFF_MS = 0;
 const OPERA_DETAIL_SOURCE_ID = "opera-radar-detail-source";
 const OPERA_DETAIL_LAYER_ID = "opera-radar-detail-layer";
 const OPERA_TILE_LOAD_TIMEOUT_MS = 2200;
-const WEYRA_BASE_MAP_STYLE = "/map-styles/weyra-atlas-v2.json";
+const WEYRA_BASE_MAP_STYLE = "/map-styles/weyra-atlas-v3.json";
 const RADAR_INSERT_BEFORE_LAYER_ID = "boundary_country_outline";
 // A freshly published observation gets a soft pulsing halo for this long, then settles down.
 const OBSERVATION_FRESH_WINDOW_MS = 10 * 60_000;
@@ -157,10 +157,10 @@ function ensureObservationLayers(map: MapLibreMap) {
     filter: ["has", "point_count"],
     paint: {
       "circle-radius": ["step", ["get", "point_count"], 12, 8, 14, 24, 17],
-      "circle-color": "#071b2e",
+      "circle-color": "#0a0f22",
       "circle-opacity": 0.92,
       "circle-stroke-width": 1.4,
-      "circle-stroke-color": "#62f2dc",
+      "circle-stroke-color": "#a78bfa",
       "circle-stroke-opacity": 0.9,
       "circle-blur": 0.05,
     },
@@ -172,7 +172,7 @@ function ensureObservationLayers(map: MapLibreMap) {
     filter: ["has", "point_count"],
     paint: {
       "circle-radius": ["step", ["get", "point_count"], 8, 8, 10, 24, 12],
-      "circle-color": "#123954",
+      "circle-color": "#3a2b85",
       "circle-opacity": 0.98,
     },
   });

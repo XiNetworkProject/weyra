@@ -267,26 +267,33 @@ def parse_georeferencing(
     return projection_bounds, maplibre_coordinates, geographic_bounds, None
 
 
-PALETTE_VERSION = "weyra-v2"
+PALETTE_VERSION = "weyra-v3"
 DIAGNOSTIC_PERCENTILES = [1, 5, 25, 50, 75, 95, 99]
 SOURCE_GRID_NODATA = -9999.0
 
 
 def colorize(dbz: np.ndarray, valid: np.ndarray) -> np.ndarray:
-    # Vivid "turbo"-style ramp matching the Weyra mock and the on-screen legend
-    # (deep blue -> bright blue -> cyan -> green -> yellow -> orange -> pink -> violet).
+    # Neon-night ramp shared with the tiled pipeline (render_opera_tile.py "v5"):
+    # saturated blue -> cyan -> green -> yellow -> orange -> pink -> magenta cores.
     stops = np.array(
         [
-            [-10.0, 32, 73, 176, 48],
-            [0.0, 42, 118, 224, 110],
-            [8.0, 46, 159, 255, 160],
-            [16.0, 37, 213, 212, 195],
-            [24.0, 132, 219, 53, 220],
-            [32.0, 255, 219, 61, 235],
-            [40.0, 251, 139, 66, 245],
-            [48.0, 230, 70, 121, 250],
-            [58.0, 189, 60, 233, 255],
-            [70.0, 143, 66, 236, 255],
+            [-10.0, 12, 80, 200, 36],
+            [8.0, 12, 80, 200, 40],
+            [14.0, 8, 145, 240, 70],
+            [18.0, 15, 185, 235, 96],
+            [22.0, 25, 220, 210, 124],
+            [26.0, 35, 230, 165, 152],
+            [30.0, 80, 235, 110, 176],
+            [33.0, 150, 240, 75, 196],
+            [36.0, 215, 240, 60, 210],
+            [39.0, 250, 220, 50, 220],
+            [43.0, 255, 175, 45, 228],
+            [47.0, 255, 120, 45, 236],
+            [50.0, 252, 70, 80, 242],
+            [54.0, 240, 50, 150, 247],
+            [58.0, 225, 55, 210, 251],
+            [63.0, 205, 70, 240, 253],
+            [70.0, 170, 90, 250, 255],
         ],
         dtype=np.float32,
     )
