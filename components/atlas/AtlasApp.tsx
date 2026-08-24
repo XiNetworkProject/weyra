@@ -59,7 +59,6 @@ import {
 import {
   confirmObservation,
   createObservation,
-  isLocalObservationMode,
   loadConfirmedObservationIds,
   loadObservations,
   subscribeToObservations,
@@ -777,6 +776,7 @@ export default function AtlasApp() {
     };
 
     const triggerMaintenance = () => {
+      if (process.env.NODE_ENV === "production") return;
       // Fire-and-forget: the server builds missing packs in the background (202 immediately).
       void fetch("/api/radar/opera/packs/maintenance", { method: "POST", cache: "no-store" })
         .catch((error) => console.debug("OPERA pack maintenance trigger failed", error));
@@ -1061,7 +1061,6 @@ export default function AtlasApp() {
   const latestAge = scanAgeMinutes(latestRadarFrame);
   const radarIsFresh = latestAge !== null && latestAge <= Math.max(7, radarCadenceMinutes + 2);
   const radarProgress = radarFrames.length < 2 ? 100 : (radarFrameIndex / (radarFrames.length - 1)) * 100;
-  const localObservationMode = isLocalObservationMode();
   const usesMeteoFranceRadar = radarProvider.toLowerCase().includes("meteo");
   const radarSourceText = usesMeteoFranceRadar ? "Radar France · 5 min" : "Radar public · 10 min";
   const operaRadarTime = formatOperaRadarTime(operaRadarStatus.timestamp);
@@ -1166,14 +1165,18 @@ export default function AtlasApp() {
       likes: 0,
       place: location.name,
     };
-    await createObservation(observation);
+    const persistence = await createObservation(observation);
     updateLocalPreferences({ nickname: observation.nickname });
     await refreshObservations();
     setDrawerOpen(false);
     setSelectedObservation(observation);
     mapRef.current?.flyTo({ center: [observation.lon, observation.lat], zoom: Math.max(mapRef.current.getZoom(), 10.5), essential: true });
-    showToast(localObservationMode ? "Observation enregistrée sur cet appareil." : "Observation publiée.");
-  }, [localObservationMode, location.name, refreshObservations, reportPosition.lat, reportPosition.lon, showToast, updateLocalPreferences]);
+    showToast(
+      persistence.synced
+        ? "Observation envoyée à la modération Weyra."
+        : "Observation enregistrée sur cet appareil.",
+    );
+  }, [location.name, refreshObservations, reportPosition.lat, reportPosition.lon, showToast, updateLocalPreferences]);
 
   const handleConfirmObservation = useCallback(async (observation: Observation) => {
     const result = await confirmObservation(observation);

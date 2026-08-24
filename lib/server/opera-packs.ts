@@ -15,6 +15,7 @@ import {
   type OperaOverviewTileJob,
   type OperaTilePrewarmResult,
 } from "@/lib/server/opera-render";
+import { RADAR_CACHE_ROOT, readBoundedPositiveIntEnv } from "@/lib/server/radar-config";
 
 // Scan packs: pre-published, fully static radar tile sets. A pack becomes "ready" only once
 // every required overview tile (z3..z6 over the OPERA Europe extent) exists on disk, so Atlas
@@ -23,7 +24,6 @@ import {
 // PRODUCTION NOTE: ensureRadarScanPacks() must run in a permanent worker/cron (every 1-2 min).
 // Locally it runs at server startup (instrumentation.ts) and via POST /api/radar/opera/packs/maintenance.
 
-const RADAR_CACHE_ROOT = path.join(process.cwd(), ".radar-cache");
 const FRAMES_DIR = path.join(RADAR_CACHE_ROOT, "frames");
 export const PACKS_VERSION = "v3";
 const PACKS_ROOT = path.join(RADAR_CACHE_ROOT, "packs", PACKS_VERSION);
@@ -38,8 +38,8 @@ export const PACK_DETAIL_ZOOM_MAX = 11;
 export const PACK_TILE_SIZE = 256;
 
 const TARGET_SCAN_COUNT = 12;
-const MAX_KEPT_PACKS = readPositiveIntEnv("WEYRA_RADAR_MAX_PACKS", 16);
-const MAX_CONCURRENT_PACK_BUILDS = 2;
+const MAX_KEPT_PACKS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_PACKS", 16, 96);
+const MAX_CONCURRENT_PACK_BUILDS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CONCURRENT_PACK_BUILDS", 2, 4);
 const STALE_BUILD_DIR_MS = 60 * 60_000;
 
 export type ScanPackCoverage = { west: number; south: number; east: number; north: number };
@@ -98,11 +98,6 @@ const runtimeState = globalForOperaPacks.__weyraOperaPackRuntime ??= {
   },
 };
 const buildInFlight = runtimeState.buildInFlight;
-
-function readPositiveIntEnv(name: string, fallback: number) {
-  const parsed = Number(process.env[name]);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 function nowIso() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -465,7 +460,8 @@ export function getScanPackMaintenanceStatus(): ScanPackMaintenanceSnapshot {
   return { ...snapshot, building: [...snapshot.building], errors: [...snapshot.errors] };
 }
 
-// Server-only entry point. Detects available scans, builds missing packs (max 2 Python processes),
+// Server-only entry point. Detects available scans and builds missing packs with bounded Python
+// concurrency (configured separately for web and worker processes),
 // keeps the freshest MAX_KEPT_PACKS packs, and never depends on any browser request to make
 // progress once triggered. Returns immediately with a status snapshot; the work continues in
 // the background. In production this must be driven by a permanent worker/cron.

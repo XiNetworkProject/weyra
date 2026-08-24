@@ -6,6 +6,7 @@
 // (e.g. every 1-2 minutes) so new OPERA scans are packaged as soon as they are available.
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.WEYRA_RADAR_MAINTENANCE_MODE === "external") return;
 
   setTimeout(() => {
     import("@/lib/server/opera-packs")

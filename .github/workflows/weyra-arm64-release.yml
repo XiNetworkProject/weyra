@@ -1,0 +1,99 @@
+name: Weyra ARM64 release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weyra-arm64-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WEYRA_RADAR_MAINTENANCE_MODE: external
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pinned pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm run check
+
+      - name: Build production application and worker
+        run: pnpm run build:production
+
+      - name: Validate Python sources
+        run: python3 -m py_compile radar-worker/*.py
+
+      - name: Assemble standalone release
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release
+          mkdir -p release/.next/static release/dist
+          cp -a .next/standalone/. release/
+          cp -a .next/static/. release/.next/static/
+          cp -a public release/public
+          mkdir -p release/radar-worker
+          cp -a radar-worker/. release/radar-worker/
+          cp dist/radar-worker.mjs release/dist/radar-worker.mjs
+          printf '{"commit":"%s","builtAt":"%s","platform":"linux-arm64"}\n' \
+            "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > release/release.json
+          cp release/release.json weyra-release.json
+          tar -C release -czf weyra-linux-arm64.tar.gz .
+          sha256sum weyra-linux-arm64.tar.gz > weyra-linux-arm64.tar.gz.sha256
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weyra-linux-arm64-${{ github.sha }}
+          path: |
+            weyra-linux-arm64.tar.gz
+            weyra-linux-arm64.tar.gz.sha256
+            weyra-release.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish edge release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view weyra-edge >/dev/null 2>&1; then
+            gh release edit weyra-edge \
+              --target "$GITHUB_SHA" \
+              --title "Weyra deployable ARM64"
+          else
+            gh release create weyra-edge \
+              --target "$GITHUB_SHA" \
+              --title "Weyra deployable ARM64" \
+              --notes "Artifact generated from the latest validated main commit." \
+              --prerelease
+          fi
+          gh release upload weyra-edge \
+            weyra-linux-arm64.tar.gz \
+            weyra-linux-arm64.tar.gz.sha256 \
+            --clobber
+          gh release upload weyra-edge weyra-release.json --clobber

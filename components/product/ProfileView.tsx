@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   IconBook,
   IconBookmark,
@@ -41,6 +42,7 @@ export default function ProfileView({
   onToast,
 }: ProfileViewProps) {
   const {
+    backend,
     state,
     updateProfile,
     addNotebookEntry,
@@ -62,7 +64,18 @@ export default function ProfileView({
     () => observations.filter((observation) => !observation.isSeed || observation.nickname === state.profile.displayName),
     [observations, state.profile.displayName],
   );
-  const savedPosts = PRODUCT_POSTS.filter((post) => state.bookmarkedPostIds.includes(post.id));
+  const savedPosts = [...state.remotePosts, ...PRODUCT_POSTS]
+    .filter((post) => state.bookmarkedPostIds.includes(post.id));
+
+  useEffect(() => {
+    if (editing) return;
+    setProfileDraft({
+      displayName: state.profile.displayName,
+      handle: state.profile.handle,
+      bio: state.profile.bio,
+      region: state.profile.region,
+    });
+  }, [editing, state.profile.bio, state.profile.displayName, state.profile.handle, state.profile.region]);
 
   function submitProfile(event: FormEvent) {
     event.preventDefault();
@@ -76,7 +89,7 @@ export default function ProfileView({
       initials: displayName.split(/\s+/).map((word) => word[0]).join("").slice(0, 2).toUpperCase(),
     });
     setEditing(false);
-    onToast("Profil local mis à jour.");
+    onToast(backend.status === "authenticated" ? "Profil Weyra synchronisé." : "Profil local mis à jour.");
   }
 
   function submitNote(event: FormEvent) {
@@ -98,14 +111,34 @@ export default function ProfileView({
       <ProductSectionHeading
         eyebrow="Identité & mémoire"
         title="Mon espace Weyra"
-        copy="Tes observations, lieux et apprentissages restent enregistrés sur cet appareil."
-        action={<DemoNotice compact />}
+        copy={backend.status === "authenticated"
+          ? "Ton profil, tes préférences et ton carnet te suivent sur tous tes appareils."
+          : "Tes observations, lieux et apprentissages restent enregistrés sur cet appareil."}
+        action={backend.status === "authenticated" ? undefined : <DemoNotice compact />}
       />
+
+      <section className={`product-account-status is-${backend.status}`}>
+        <span><IconCheck /></span>
+        <div>
+          <small>{backend.status === "authenticated" ? "Compte Weyra actif" : backend.status === "connecting" ? "Connexion en cours" : "Mode local"}</small>
+          <b>{backend.status === "authenticated" ? backend.email ?? state.profile.displayName : "Aucun compte connecté"}</b>
+          <p>{backend.status === "authenticated"
+            ? "Profil, réglages, alertes et carnet synchronisés avec Supabase."
+            : "La démonstration reste complète, mais ces données ne quittent pas cet appareil."}</p>
+        </div>
+        {backend.status === "authenticated" ? (
+          <form action="/auth/signout" method="post">
+            <button className="product-secondary-button" type="submit">Se déconnecter</button>
+          </form>
+        ) : (
+          <Link className="product-primary-button" href="/login?next=/?space=profile">Se connecter</Link>
+        )}
+      </section>
 
       <header className="product-profile-hero">
         <div className="product-profile-hero__avatar" style={{ "--profile-accent": state.profile.accent } as never}>{state.profile.initials}</div>
         <div className="product-profile-hero__identity">
-          <span>Profil local</span>
+          <span>{backend.status === "authenticated" ? "Profil synchronisé" : "Profil local"}</span>
           <h2>{state.profile.displayName}</h2>
           <small>{state.profile.handle} · {state.profile.region}</small>
           <p>{state.profile.bio}</p>

@@ -1,0 +1,11 @@
+.git
+.next
+.radar-cache
+.vercel
+.claude
+artifacts
+node_modules
+package-lock.json
+.env*
+*.log
+*.tsbuildinfo

@@ -1,0 +1,19 @@
+[Unit]
+Description=Install the latest validated Weyra ARM64 release
+After=network-online.target local-fs.target
+Wants=network-online.target
+ConditionPathExists=/etc/weyra/weyra-deploy.env
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/weyra-deploy
+Nice=10
+IOSchedulingClass=idle
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+TimeoutStartSec=15min
+MemoryHigh=600M
+MemoryMax=800M
+

@@ -45,6 +45,7 @@ function postTypeLabel(post: ProductPost) {
 
 export default function FeedView({ onNavigate, onOpenObservation, onOpenMap, onToast }: FeedViewProps) {
   const {
+    backend,
     state,
     togglePostLike,
     recordPostShare,
@@ -57,14 +58,23 @@ export default function FeedView({ onNavigate, onOpenObservation, onOpenMap, onT
   const [commentDraft, setCommentDraft] = useState("");
   const [visibleCount, setVisibleCount] = useState(12);
 
-  const authors = useMemo(() => new Map(PRODUCT_AUTHORS.map((author) => [author.id, author])), []);
+  const allPosts = useMemo(() => {
+    const merged = new Map(PRODUCT_POSTS.map((post) => [post.id, post]));
+    state.remotePosts.forEach((post) => merged.set(post.id, post));
+    return [...merged.values()].sort((a, b) => (
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    ));
+  }, [state.remotePosts]);
+  const authors = useMemo(() => new Map(
+    [...PRODUCT_AUTHORS, ...state.remoteAuthors].map((author) => [author.id, author]),
+  ), [state.remoteAuthors]);
   const posts = useMemo(() => {
     if (filter === "following") {
-      return PRODUCT_POSTS.filter((post) => state.followedAuthorIds.includes(post.authorId));
+      return allPosts.filter((post) => state.followedAuthorIds.includes(post.authorId));
     }
-    if (filter === "trending") return [...PRODUCT_POSTS].sort((a, b) => b.likes - a.likes);
-    return PRODUCT_POSTS;
-  }, [filter, state.followedAuthorIds]);
+    if (filter === "trending") return [...allPosts].sort((a, b) => b.likes - a.likes);
+    return allPosts;
+  }, [allPosts, filter, state.followedAuthorIds]);
   const visiblePosts = posts.slice(0, visibleCount);
 
   useEffect(() => {
@@ -103,9 +113,11 @@ export default function FeedView({ onNavigate, onOpenObservation, onOpenMap, onT
         <button onClick={() => onNavigate("learn")}>Apprendre</button>
       </div>
       <div className="product-feed__density">
-        <span><i />Simulation sociale locale</span>
+        <span><i />{backend.status === "authenticated" ? "Flux Weyra synchronisé" : "Simulation sociale locale"}</span>
         <b>{posts.length.toLocaleString("fr-FR")} publications dans ce flux</b>
-        <small>Les profils, réactions et contenus sont fictifs et servent à éprouver l’interface.</small>
+        <small>{state.remotePosts.length
+          ? `${state.remotePosts.length.toLocaleString("fr-FR")} publication(s) proviennent de Supabase ; le reste illustre une communauté active.`
+          : "Les profils, réactions et contenus sont fictifs et servent à éprouver l’interface."}</small>
       </div>
 
       {!posts.length ? (

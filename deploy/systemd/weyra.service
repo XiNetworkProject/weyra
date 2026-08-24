@@ -1,0 +1,35 @@
+[Unit]
+Description=Weyra web application
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=weyra
+Group=weyra
+WorkingDirectory=/srv/apps/weyra/current
+EnvironmentFile=/etc/weyra/weyra.env
+EnvironmentFile=-/etc/weyra/release.env
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryHigh=450M
+MemoryMax=650M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+umask 027
+
+readonly APP_ROOT="/srv/apps/weyra"
+readonly RELEASES_DIR="${APP_ROOT}/releases"
+readonly CURRENT_LINK="${APP_ROOT}/current"
+readonly DEPLOY_ENV="/etc/weyra/weyra-deploy.env"
+readonly RELEASE_ENV="/etc/weyra/release.env"
+readonly LOG_FILE="/var/log/weyra-deploy.log"
+readonly LOCK_FILE="/run/lock/weyra-deploy.lock"
+readonly APP_USER="weyra"
+readonly APP_GROUP="weyra"
+
+mkdir -p "${APP_ROOT}" "${RELEASES_DIR}"
+touch "${LOG_FILE}"
+chmod 0640 "${LOG_FILE}"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+log() {
+  printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+fail() {
+  log "ERROR: $*"
+  exit 1
+}
+
+[[ "${EUID}" -eq 0 ]] || fail "the deployer must run as root"
+[[ -r "${DEPLOY_ENV}" ]] || fail "missing ${DEPLOY_ENV}"
+
+set -a
+# shellcheck disable=SC1090
+source "${DEPLOY_ENV}"
+set +a
+
+: "${WEYRA_RELEASE_BASE_URL:=https://github.com/XiNetworkProject/weyra/releases/download/weyra-edge}"
+: "${WEYRA_DEPLOY_MIN_AVAILABLE_KB:=262144}"
+: "${WEYRA_SMOKE_PORT:=3199}"
+: "${WEYRA_RADAR_CACHE_DIR:=/srv/apps/weyra/shared/radar-cache}"
+
+for command_name in curl flock node python3 runuser sha256sum systemctl tar; do
+  command -v "${command_name}" >/dev/null 2>&1 || fail "missing command: ${command_name}"
+done
+
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+  log "another Weyra deployment is already running; skipping"
+  exit 0
+fi
+
+if systemctl is-active --quiet synaura-deploy.service; then
+  log "Synaura deployment is active; deferring Weyra"
+  exit 0
+fi
+
+available_kb="$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)"
+if [[ ! "${available_kb}" =~ ^[0-9]+$ ]] || (( available_kb < WEYRA_DEPLOY_MIN_AVAILABLE_KB )); then
+  log "available memory is below the deployment floor; deferring Weyra"
+  exit 0
+fi
+
+incoming_dir="$(mktemp -d "${APP_ROOT}/.incoming.XXXXXX")"
+smoke_pid=""
+
+cleanup() {
+  if [[ -n "${smoke_pid}" ]] && kill -0 "${smoke_pid}" 2>/dev/null; then
+    kill "${smoke_pid}" 2>/dev/null || true
+    wait "${smoke_pid}" 2>/dev/null || true
+  fi
+  rm -rf -- "${incoming_dir}"
+}
+trap cleanup EXIT
+
+auth_config="${incoming_dir}/curl-auth.conf"
+curl_auth_args=()
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  printf 'header = "Authorization: Bearer %s"\n' "${GITHUB_TOKEN}" > "${auth_config}"
+  chmod 0600 "${auth_config}"
+  curl_auth_args=(--config "${auth_config}")
+fi
+
+download() {
+  local remote_name="$1"
+  local destination="$2"
+  curl \
+    --fail \
+    --silent \
+    --show-error \
+    --location \
+    --retry 3 \
+    --retry-delay 2 \
+    --connect-timeout 10 \
+    --max-time 300 \
+    --header "Cache-Control: no-cache" \
+    "${curl_auth_args[@]}" \
+    "${WEYRA_RELEASE_BASE_URL%/}/${remote_name}" \
+    --output "${destination}"
+}
+
+json_field() {
+  python3 - "$1" "$2" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle).get(sys.argv[2], "")
+print(value if isinstance(value, str) else "")
+PY
+}
+
+log "checking the validated ARM64 release"
+download "weyra-release.json" "${incoming_dir}/weyra-release.json"
+remote_commit="$(json_field "${incoming_dir}/weyra-release.json" commit)"
+[[ "${remote_commit}" =~ ^[0-9a-f]{40}$ ]] || fail "invalid remote release manifest"
+
+current_commit=""
+if [[ -r "${CURRENT_LINK}/release.json" ]]; then
+  current_commit="$(json_field "${CURRENT_LINK}/release.json" commit)"
+fi
+if [[ "${current_commit}" == "${remote_commit}" ]]; then
+  log "release ${remote_commit:0:12} is already active"
+  exit 0
+fi
+
+archive_name="weyra-linux-arm64.tar.gz"
+checksum_name="${archive_name}.sha256"
+download "${archive_name}" "${incoming_dir}/${archive_name}"
+download "${checksum_name}" "${incoming_dir}/${checksum_name}"
+(
+  cd "${incoming_dir}"
+  sha256sum --check "${checksum_name}"
+)
+
+if tar -tzf "${incoming_dir}/${archive_name}" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+  fail "unsafe path found in release archive"
+fi
+
+release_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+release_dir="${RELEASES_DIR}/${release_stamp}-${remote_commit:0:12}"
+if [[ -e "${release_dir}" ]]; then
+  release_dir="${release_dir}-$$"
+fi
+mkdir -p "${release_dir}"
+tar --no-same-owner -xzf "${incoming_dir}/${archive_name}" -C "${release_dir}"
+
+[[ -f "${release_dir}/server.js" ]] || fail "release has no standalone server"
+[[ -f "${release_dir}/dist/radar-worker.mjs" ]] || fail "release has no radar worker"
+[[ -f "${release_dir}/radar-worker/requirements.txt" ]] || fail "release has no Python requirements"
+
+extracted_commit="$(json_field "${release_dir}/release.json" commit)"
+[[ "${extracted_commit}" == "${remote_commit}" ]] || fail "release manifest and archive do not match"
+
+node --check "${release_dir}/server.js"
+node --check "${release_dir}/dist/radar-worker.mjs"
+python3 -m py_compile "${release_dir}"/radar-worker/*.py
+
+log "creating the isolated Python environment"
+python3 -m venv "${release_dir}/.venv"
+"${release_dir}/.venv/bin/python" -m pip install \
+  --disable-pip-version-check \
+  --no-cache-dir \
+  --only-binary=:all: \
+  --requirement "${release_dir}/radar-worker/requirements.txt"
+
+mkdir -p "${WEYRA_RADAR_CACHE_DIR}"
+chown -R root:"${APP_GROUP}" "${release_dir}"
+chown -R "${APP_USER}:${APP_GROUP}" "${WEYRA_RADAR_CACHE_DIR}"
+
+log "running the isolated pre-switch health check"
+(
+  cd "${release_dir}"
+  exec runuser -u "${APP_USER}" -- env \
+    NODE_ENV=production \
+    HOSTNAME=127.0.0.1 \
+    PORT="${WEYRA_SMOKE_PORT}" \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NODE_OPTIONS=--max-old-space-size=256 \
+    WEYRA_RELEASE_SHA="${remote_commit}" \
+    WEYRA_RADAR_CACHE_DIR="${WEYRA_RADAR_CACHE_DIR}" \
+    WEYRA_RADAR_MAINTENANCE_MODE=external \
+    PYTHON_BIN="${release_dir}/.venv/bin/python" \
+    /usr/bin/node server.js
+) > "${incoming_dir}/smoke.log" 2>&1 &
+smoke_pid="$!"
+
+smoke_ok=false
+for _attempt in $(seq 1 30); do
+  if curl --fail --silent --max-time 3 "http://127.0.0.1:${WEYRA_SMOKE_PORT}/api/health" \
+    | python3 -c 'import json,sys; data=json.load(sys.stdin); raise SystemExit(0 if data.get("ok") else 1)' 2>/dev/null; then
+    smoke_ok=true
+    break
+  fi
+  sleep 1
+done
+
+kill "${smoke_pid}" 2>/dev/null || true
+wait "${smoke_pid}" 2>/dev/null || true
+smoke_pid=""
+[[ "${smoke_ok}" == true ]] || fail "pre-switch health check failed"
+
+previous_release=""
+if [[ -L "${CURRENT_LINK}" ]]; then
+  previous_release="$(readlink -f "${CURRENT_LINK}" || true)"
+fi
+
+write_release_env() {
+  local commit="$1"
+  local temporary_env
+  temporary_env="$(mktemp /etc/weyra/.release.env.XXXXXX)"
+  printf 'WEYRA_RELEASE_SHA=%s\n' "${commit}" > "${temporary_env}"
+  chown root:"${APP_GROUP}" "${temporary_env}"
+  chmod 0640 "${temporary_env}"
+  mv -f "${temporary_env}" "${RELEASE_ENV}"
+}
+
+activate_release() {
+  local target="$1"
+  local next_link="${APP_ROOT}/.current-next"
+  rm -f -- "${next_link}"
+  ln -s "${target}" "${next_link}"
+  mv -Tf "${next_link}" "${CURRENT_LINK}"
+}
+
+active_health_ok() {
+  local expected_commit="$1"
+  local response_file="${incoming_dir}/active-health.json"
+  for _attempt in $(seq 1 30); do
+    if curl --fail --silent --max-time 3 "http://127.0.0.1:3100/api/health" --output "${response_file}"; then
+      if python3 - "${response_file}" "${expected_commit}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(handle)
+raise SystemExit(0 if payload.get("ok") is True and payload.get("release") == sys.argv[2] else 1)
+PY
+      then
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+rollback() {
+  if [[ -n "${previous_release}" && -d "${previous_release}" ]]; then
+    previous_commit="$(json_field "${previous_release}/release.json" commit)"
+    log "rolling back to ${previous_commit:0:12}"
+    activate_release "${previous_release}"
+    write_release_env "${previous_commit}"
+    systemctl restart weyra.service
+    systemctl restart weyra-radar.service || true
+    active_health_ok "${previous_commit}" || log "WARNING: rollback health check also failed"
+  else
+    log "no previous Weyra release exists; stopping the failed first deployment"
+    systemctl stop weyra-radar.service weyra.service || true
+  fi
+}
+
+log "activating ${remote_commit:0:12}"
+activate_release "${release_dir}"
+write_release_env "${remote_commit}"
+
+if ! systemctl restart weyra.service || ! active_health_ok "${remote_commit}"; then
+  rollback
+  fail "new web release failed; rollback completed"
+fi
+
+if ! systemctl restart weyra-radar.service || ! systemctl is-active --quiet weyra-radar.service; then
+  rollback
+  fail "new radar worker failed; rollback completed"
+fi
+
+log "deployment succeeded: ${remote_commit:0:12}"

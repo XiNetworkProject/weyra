@@ -45,15 +45,18 @@ export default function HomeView({
   onOpenObservation,
   onCreateObservation,
 }: HomeViewProps) {
-  const { state } = useWeyraProduct();
+  const { backend, state } = useWeyraProduct();
   const joinedCommunities = [...state.createdCommunities, ...COMMUNITIES]
     .filter((community) => state.joinedCommunityIds.includes(community.id))
     .slice(0, 4);
   const event = COMMUNITY_EVENTS
     .filter((item) => state.joinedCommunityIds.includes(item.communityId))
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
-  const authorById = new Map(PRODUCT_AUTHORS.map((author) => [author.id, author]));
-  const recentPosts = PRODUCT_POSTS.slice(0, 3);
+  const allAuthors = [...PRODUCT_AUTHORS, ...state.remoteAuthors];
+  const authorById = new Map(allAuthors.map((author) => [author.id, author]));
+  const recentPosts = [...state.remotePosts, ...PRODUCT_POSTS]
+    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+    .slice(0, 3);
   const weatherLabel = weather ? `${Math.round(weather.temperature)}°` : "--°";
 
   return (
@@ -89,10 +92,10 @@ export default function HomeView({
       <section className="home-social-pulse" aria-label="Activité sociale de démonstration">
         <header>
           <div>
-            <span><i />Mode démonstration sociale</span>
+            <span><i />{backend.status === "authenticated" ? "Réseau Weyra synchronisé" : "Mode démonstration sociale"}</span>
             <h2>Weyra est vivant autour de vous</h2>
           </div>
-          <small>Données fictives locales · aucune identité réelle</small>
+          <small>{state.remotePosts.length ? `${state.remotePosts.length} publication(s) Supabase · démonstration enrichie` : "Données fictives locales · aucune identité réelle"}</small>
         </header>
         <div className="home-social-pulse__metrics">
           <span><IconCloud /><b>{SOCIAL_DEMO_STATS.activeObservations.toLocaleString("fr-FR")}</b><small>observations actives</small></span>
@@ -101,7 +104,7 @@ export default function HomeView({
           <span><IconShare /><b>{SOCIAL_DEMO_STATS.shares.toLocaleString("fr-FR")}</b><small>partages cumulés</small></span>
         </div>
         <aside>
-          <div>{PRODUCT_AUTHORS.slice(0, 9).map((author) => <i key={author.id} style={{ "--pulse-accent": author.accent } as never}>{author.initials}</i>)}</div>
+          <div>{allAuthors.slice(0, 9).map((author) => <i key={author.id} style={{ "--pulse-accent": author.accent } as never}>{author.initials}</i>)}</div>
           <span><b>{SOCIAL_DEMO_STATS.communityMessages.toLocaleString("fr-FR")} messages</b><small>dans {SOCIAL_DEMO_STATS.communities} communautés de démonstration</small></span>
           <button type="button" onClick={() => onNavigate("feed")}>Ouvrir le flux<IconChevronRight /></button>
         </aside>

@@ -1,6 +1,6 @@
-h5py
-numpy
-Pillow
-pyproj
-rasterio
-mercantile
+h5py==3.16.0
+numpy==2.4.6
+Pillow==12.3.0
+pyproj==3.7.2
+rasterio==1.4.4
+mercantile==1.2.1

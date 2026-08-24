@@ -2,22 +2,44 @@
   "name": "weyra-atlas",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "build:radar-worker": "esbuild scripts/radar-worker.ts --bundle --platform=node --format=esm --conditions=react-server --outfile=dist/radar-worker.mjs",
+    "build:production": "pnpm run build && pnpm run build:radar-worker",
     "start": "next start",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "supabase:lint": "supabase db lint --local --level warning",
+    "supabase:status": "supabase status"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.3",
+    "@supabase/supabase-js": "2.110.8",
     "maplibre-gl": "5.24.0",
     "next": "16.2.11",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "24.5.2",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "esbuild": "0.28.2",
+    "supabase": "2.109.1",
     "typescript": "6.0.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
   }
 }

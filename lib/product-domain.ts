@@ -312,9 +312,11 @@ export type ProductSettings = {
 
 export type WeyraProductState = {
   version: 3;
-  demoMode: true;
+  demoMode: boolean;
   onboardingComplete: boolean;
   profile: ProductProfile;
+  remoteAuthors: ProductAuthor[];
+  remotePosts: ProductPost[];
   likedPostIds: string[];
   sharedPostIds: string[];
   bookmarkedPostIds: string[];

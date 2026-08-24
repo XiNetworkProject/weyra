@@ -180,8 +180,10 @@ function CommunityHome({
   onOpenSpace: (spaceId: string) => void;
   onOpenEvents: () => void;
 }) {
+  const { state } = useWeyraProduct();
   const recentObservation = observations[0] ?? null;
-  const featuredPost = PRODUCT_POSTS.find((post) => distanceKm(community.center, post) <= 220) ?? PRODUCT_POSTS[0];
+  const allPosts = [...state.remotePosts, ...PRODUCT_POSTS];
+  const featuredPost = allPosts.find((post) => distanceKm(community.center, post) <= 220) ?? allPosts[0];
   return (
     <div className="community-home">
       <header className="community-hero" style={{ "--community-accent": community.accent } as never}>
@@ -330,8 +332,9 @@ function CommunitySpaceView({
   const visibleMessages = messages.slice(-messageLimit);
   const publicationMessages = messages.slice(-contentLimit).reverse();
   const allMediaPosts = useMemo(
-    () => PRODUCT_POSTS.filter((post) => post.imageUrl && distanceKm(community.center, post) <= 220),
-    [community.center],
+    () => [...state.remotePosts, ...PRODUCT_POSTS]
+      .filter((post) => post.imageUrl && distanceKm(community.center, post) <= 220),
+    [community.center, state.remotePosts],
   );
   const mediaPosts = allMediaPosts.slice(0, contentLimit);
 

@@ -12,10 +12,10 @@ import {
   type MeteoGateDataLink,
   type RecentOperaComposite,
 } from "@/lib/server/meteogate";
+import { RADAR_CACHE_ROOT, readBoundedPositiveIntEnv } from "@/lib/server/radar-config";
 
 const RENDER_TIMEOUT_MS = 120_000;
 const DOWNLOAD_TIMEOUT_MS = 90_000;
-const RADAR_CACHE_ROOT = path.join(process.cwd(), ".radar-cache");
 const CACHE_DIR = path.join(RADAR_CACHE_ROOT, "frames");
 const TILE_DIR = path.join(RADAR_CACHE_ROOT, "tiles");
 const TILE_META_DIR = path.join(RADAR_CACHE_ROOT, "tile-meta");
@@ -25,8 +25,8 @@ const METEOGATE_HOST = "api.meteogate.eu";
 export const TILE_RENDER_VERSION = "v4a";
 const SUPPORTED_TILE_RENDER_VERSIONS = ["v1", "v2", "v3", "v3b", "v3c", "v4a"] as const;
 const MAX_CACHED_FRAMES = 18;
-const MAX_CONCURRENT_RENDERS = 2;
-const MAX_CONCURRENT_TILE_RENDERS = 2;
+const MAX_CONCURRENT_RENDERS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CONCURRENT_RENDERS", 2, 4);
+const MAX_CONCURRENT_TILE_RENDERS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CONCURRENT_TILE_RENDERS", 2, 4);
 const BATCH_RENDER_TIMEOUT_MS = 9 * 60_000;
 const MIN_TILE_ZOOM = 3;
 const MAX_TILE_ZOOM = 11;
