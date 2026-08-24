@@ -7944,3 +7944,944 @@
       var(--weyra-night);
   }
 }
+
+
+/* ============================================================
+   WEYRA ORBIT — refonte structurelle (couche finale)
+   Sidebar avec labels, topbar flottante, aurore d'arrière-plan,
+   accueil en grille bento. Desktop uniquement ; le mobile garde
+   son rail 0px + barre de navigation basse existants.
+   ============================================================ */
+
+/* ---------- Aurore d'arrière-plan (tous écrans) ---------- */
+.weyra-shell::before {
+  content: "";
+  position: absolute;
+  inset: -6%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(640px 420px at 16% -6%, color-mix(in srgb, var(--space-accent) 10%, transparent), transparent 70%),
+    radial-gradient(760px 540px at 90% 108%, color-mix(in srgb, var(--space-accent-2) 9%, transparent), transparent 70%);
+  animation: weyraAurora 26s ease-in-out infinite alternate;
+  transition: background 400ms ease;
+}
+
+@keyframes weyraAurora {
+  to { transform: translate3d(2.5%, 1.5%, 0) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weyra-shell::before { animation: none; }
+}
+
+/* ---------- Shell desktop : sidebar + topbar flottante ---------- */
+@media (min-width: 720px) {
+  :root {
+    --weyra-rail: 78px;
+    --weyra-topbar: 88px;
+  }
+
+  .weyra-shell-topbar {
+    align-self: center;
+    height: 60px;
+    margin: 0 16px;
+    border: 1px solid var(--weyra-line);
+    border-radius: 18px;
+    background: rgba(5, 13, 24, 0.72);
+    box-shadow: 0 18px 48px rgba(0, 4, 12, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(24px) saturate(150%);
+  }
+}
+
+/* ---------- Sidebar large avec labels (grand écran) ---------- */
+@media (min-width: 1100px) {
+  :root {
+    --weyra-rail: 218px;
+  }
+
+  .weyra-global-rail {
+    align-items: stretch;
+    padding: 16px 12px;
+    background:
+      linear-gradient(180deg, rgba(8, 20, 36, 0.55), rgba(3, 10, 20, 0.9) 40%),
+      var(--weyra-nav);
+  }
+
+  /* Marque : pastille W + nom */
+  .weyra-global-rail__brand {
+    display: flex;
+    width: 100%;
+    height: 46px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    margin-bottom: 20px;
+    padding: 0 12px;
+    border-radius: 14px;
+    background: rgba(139, 92, 246, 0.08);
+    box-shadow: none;
+  }
+
+  .weyra-global-rail__brand span {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 9px;
+    background: linear-gradient(140deg, #8b5cf6, #38d6f5);
+    color: #fff;
+    font-size: 15px;
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
+  }
+
+  .weyra-global-rail__brand::after {
+    content: "weyra";
+    font-family: var(--weyra-font-display);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--weyra-text);
+  }
+
+  /* Entrées de navigation : icône + label */
+  .weyra-global-rail nav {
+    align-items: stretch;
+    gap: 3px;
+  }
+
+  .weyra-global-rail nav button,
+  .weyra-global-rail__bottom > button {
+    display: flex;
+    width: 100%;
+    min-height: 42px;
+    align-items: center;
+    gap: 11px;
+    padding: 0 12px;
+    border-radius: 11px;
+  }
+
+  .weyra-global-rail nav svg,
+  .weyra-global-rail__bottom svg {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 auto;
+  }
+
+  /* Le label remplace l'ancienne infobulle */
+  .weyra-global-rail nav button > span {
+    position: static;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .weyra-global-rail nav button:hover > span {
+    transform: none;
+  }
+
+  .weyra-global-rail nav button.is-active::before {
+    left: -12px;
+    height: 22px;
+  }
+
+  /* Badges non-lus alignés à droite */
+  .weyra-global-rail nav button > i {
+    position: static;
+    margin-left: auto;
+    border: 0;
+    min-width: 19px;
+    height: 19px;
+  }
+
+  /* Bloc bas : Réglages + Profil avec libellés */
+  .weyra-global-rail__bottom {
+    align-items: stretch;
+    gap: 3px;
+    padding-top: 10px;
+    border-top: 1px solid var(--weyra-line);
+  }
+
+  .weyra-global-rail__bottom > button:first-child::after {
+    content: "Réglages";
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .weyra-global-profile {
+    display: flex;
+    width: 100%;
+    min-height: 46px;
+    align-items: center;
+    gap: 11px;
+    padding: 0 12px;
+    border-radius: 11px;
+  }
+
+  .weyra-global-profile::after {
+    content: "Profil";
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .weyra-global-profile span {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+}
+
+/* ---------- En-têtes de page plus éditoriaux ---------- */
+.weyra-page-heading {
+  margin-bottom: 34px;
+}
+
+.weyra-page-heading h1,
+.admin-heading h1 {
+  font-size: clamp(30px, 3vw, 42px);
+  letter-spacing: -0.03em;
+}
+
+/* ---------- Accueil : grille bento ---------- */
+.home-bento {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(150px, auto);
+  grid-auto-flow: dense;
+  gap: 16px;
+}
+
+.home-bento__tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid var(--weyra-line);
+  border-radius: 22px;
+  background: rgba(8, 22, 39, 0.55);
+  text-align: left;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+button.home-bento__tile {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.home-bento__tile:hover {
+  border-color: var(--weyra-line-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 22px 52px rgba(0, 4, 12, 0.42);
+}
+
+.home-bento__tile > small {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: var(--weyra-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.home-bento__tile > small svg {
+  width: 15px;
+}
+
+/* Tuile météo : la pièce maîtresse */
+.home-bento__tile--weather {
+  grid-column: span 2;
+  grid-row: span 2;
+  justify-content: space-between;
+  background:
+    radial-gradient(480px 300px at 85% 0%, rgba(56, 214, 245, 0.16), transparent 65%),
+    linear-gradient(160deg, rgba(10, 26, 46, 0.9), rgba(5, 14, 26, 0.85));
+  border-color: rgba(56, 214, 245, 0.22);
+}
+
+.home-bento__tile--weather > small {
+  color: #38d6f5;
+}
+
+.home-bento__weather-main {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.home-bento__weather-main > strong {
+  font-family: var(--weyra-font-display);
+  font-size: clamp(64px, 6.5vw, 104px);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  background: linear-gradient(160deg, #ffffff 20%, #7dd7f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.home-bento__weather-main > div {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+
+.home-bento__weather-main b {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.home-bento__weather-main small {
+  color: var(--weyra-text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.home-bento__weather-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 18px 0;
+}
+
+.home-bento__weather-metrics > span {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid var(--weyra-line);
+  border-radius: 14px;
+  background: rgba(3, 10, 20, 0.45);
+}
+
+.home-bento__weather-metrics svg {
+  width: 15px;
+  color: #38d6f5;
+}
+
+.home-bento__weather-metrics b {
+  font-family: var(--weyra-font-display);
+  font-size: 17px;
+}
+
+.home-bento__weather-metrics small {
+  color: var(--weyra-text-muted);
+  font-size: 9.5px;
+}
+
+.home-bento__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.home-bento__actions > button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 1px solid rgba(56, 214, 245, 0.3);
+  border-radius: 12px;
+  background: rgba(56, 214, 245, 0.1);
+  color: #9be8f8;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.home-bento__actions > button:first-child {
+  border: 0;
+  background: linear-gradient(135deg, #22d3ee, #60a5fa);
+  color: #06121f;
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.28);
+}
+
+.home-bento__actions > button:hover {
+  border-color: rgba(56, 214, 245, 0.55);
+}
+
+.home-bento__actions > button:first-child:hover {
+  filter: brightness(1.08);
+}
+
+.home-bento__actions svg {
+  width: 16px;
+}
+
+/* Tuile Atlas : appel visuel vers la carte */
+.home-bento__tile--atlas {
+  justify-content: space-between;
+  border-color: rgba(139, 92, 246, 0.3);
+  background:
+    radial-gradient(300px 220px at 70% 110%, rgba(139, 92, 246, 0.28), transparent 68%),
+    repeating-radial-gradient(circle at 70% 110%, rgba(56, 214, 245, 0.1) 0 1px, transparent 1px 26px),
+    rgba(8, 22, 39, 0.55);
+}
+
+.home-bento__tile--atlas > svg {
+  width: 26px;
+  color: #a78bfa;
+}
+
+.home-bento__tile--atlas b {
+  font-family: var(--weyra-font-display);
+  font-size: 17px;
+}
+
+.home-bento__tile--atlas small {
+  color: var(--weyra-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Tuile pulse social */
+.home-bento__tile--pulse {
+  grid-column: span 2;
+  border-color: rgba(244, 114, 182, 0.2);
+  background:
+    radial-gradient(380px 200px at 100% 0%, rgba(244, 114, 182, 0.12), transparent 62%),
+    radial-gradient(380px 200px at 0% 100%, rgba(139, 92, 246, 0.12), transparent 62%),
+    rgba(8, 22, 39, 0.55);
+}
+
+.home-bento__tile--pulse > small {
+  color: #f472b6;
+}
+
+.home-bento__pulse-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.home-bento__pulse-avatars {
+  display: flex;
+}
+
+.home-bento__pulse-avatars i {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  margin-left: -8px;
+  border: 2px solid var(--weyra-night);
+  border-radius: 50%;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--pulse-accent, #8b5cf6) 45%, #0a1a2e), #081627);
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.home-bento__pulse-avatars i:first-child {
+  margin-left: 0;
+}
+
+.home-bento__pulse-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-bento__pulse-row b {
+  font-size: 14px;
+}
+
+.home-bento__pulse-row small {
+  color: var(--weyra-text-muted);
+  font-size: 11px;
+}
+
+.home-bento__pulse-row > button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 13px;
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  border-radius: 999px;
+  background: rgba(244, 114, 182, 0.08);
+  color: #f9a8d4;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.home-bento__pulse-row > button svg {
+  width: 14px;
+}
+
+/* Tuile événement */
+.home-bento__tile--event {
+  grid-row: span 2;
+  padding: 0;
+  border-color: rgba(251, 191, 36, 0.22);
+}
+
+.home-bento__event-media {
+  position: relative;
+  height: 46%;
+  min-height: 120px;
+  overflow: hidden;
+}
+
+.home-bento__event-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-bento__event-media span {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(3, 10, 20, 0.72);
+  color: var(--weyra-warning);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+.home-bento__event-media svg {
+  width: 12px;
+}
+
+.home-bento__tile--event > div:last-child {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.home-bento__tile--event small {
+  color: var(--weyra-warning);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.home-bento__tile--event b {
+  font-family: var(--weyra-font-display);
+  font-size: 15.5px;
+  line-height: 1.25;
+}
+
+.home-bento__tile--event p {
+  margin: 0;
+  color: var(--weyra-text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-bento__tile--event button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--weyra-warning);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.home-bento__tile--event button svg {
+  width: 13px;
+}
+
+/* Tuile communautés */
+.home-bento__tile--communities {
+  grid-column: span 2;
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.home-bento__tile--communities > small {
+  color: #34d399;
+}
+
+.home-bento__community-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.home-bento__community-rows > button {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 44px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background 130ms ease;
+}
+
+.home-bento__community-rows > button:hover {
+  background: rgba(52, 211, 153, 0.07);
+}
+
+.home-bento__community-rows b {
+  display: block;
+  font-size: 12.5px;
+}
+
+.home-bento__community-rows small {
+  color: var(--weyra-text-muted);
+  font-size: 10.5px;
+}
+
+.home-bento__community-rows em {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #34d399;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.home-bento__community-rows em i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+}
+
+/* Tuile flux récent */
+.home-bento__tile--feed {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.home-bento__feed-list {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.home-bento__feed-list > article {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--weyra-line);
+  border-radius: 14px;
+  background: rgba(3, 10, 20, 0.4);
+  transition: border-color 140ms ease;
+}
+
+.home-bento__feed-list > article:hover {
+  border-color: var(--weyra-line-strong);
+}
+
+.home-bento__feed-media {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.home-bento__feed-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-bento__feed-media span {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(3, 10, 20, 0.78);
+  color: #38d6f5;
+}
+
+.home-bento__feed-media svg {
+  width: 12px;
+}
+
+.home-bento__feed-list h3 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-bento__feed-list p {
+  margin: 3px 0 0;
+  color: var(--weyra-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-bento__feed-list small {
+  color: var(--weyra-text-muted);
+  font-size: 10px;
+}
+
+/* Tuile raccourcis */
+.home-bento__shortcut-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.home-bento__shortcut-rows > button {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background 130ms ease;
+}
+
+.home-bento__shortcut-rows > button:hover {
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.home-bento__shortcut-rows > button > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--shortcut-color, #60a5fa) 14%, transparent);
+  color: var(--shortcut-color, #60a5fa);
+}
+
+.home-bento__shortcut-rows svg {
+  width: 16px;
+}
+
+.home-bento__shortcut-rows b {
+  font-size: 12px;
+}
+
+.home-bento__shortcut-rows small {
+  display: block;
+  color: var(--weyra-text-muted);
+  font-size: 10px;
+}
+
+/* ---------- Bento : adaptations ---------- */
+@media (max-width: 1280px) {
+  .home-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 720px) {
+  .home-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-bento__tile--weather,
+  .home-bento__tile--pulse,
+  .home-bento__tile--communities,
+  .home-bento__tile--feed {
+    grid-column: span 2;
+  }
+
+  .home-bento__tile--event,
+  .home-bento__tile--feed {
+    grid-row: span 1;
+  }
+}
+
+@media (max-width: 719px) {
+  .home-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 11px;
+  }
+
+  .home-bento__tile {
+    padding: 15px;
+    border-radius: 17px;
+  }
+
+  .home-bento__tile--weather,
+  .home-bento__tile--pulse,
+  .home-bento__tile--communities,
+  .home-bento__tile--feed {
+    grid-column: span 2;
+  }
+
+  .home-bento__tile--event,
+  .home-bento__tile--feed {
+    grid-row: span 1;
+  }
+
+  .home-bento__weather-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-bento__weather-main > strong {
+    font-size: 58px;
+  }
+}
+
+
+/* ---------- Orbit : compléments bento ---------- */
+.home-bento__shortcut-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+
+.home-bento__shortcut-icon svg {
+  width: 16px;
+}
+
+.home-bento__community-rows > button > svg {
+  width: 15px;
+  color: var(--weyra-text-muted);
+}
+
+.home-bento__tile--shortcuts > small {
+  color: #60a5fa;
+}
+
+
+/* ============================================================
+   WEYRA ORBIT — pages : Explorer, Messages, Apprendre
+   Casser la monotonie des grilles uniformes.
+   ============================================================ */
+
+/* ---------- Explorer : une carte vedette, grille vivante ---------- */
+@media (min-width: 1100px) {
+  .community-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .community-card-grid > .community-card:first-child {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  .community-card-grid > .community-card:first-child .community-card__visual {
+    min-height: 300px;
+  }
+
+  .community-card-grid > .community-card:first-child .community-card__content h3 {
+    font-size: 22px;
+  }
+}
+
+.explore-featured {
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.explore-filters {
+  flex-wrap: wrap;
+}
+
+/* ---------- Messages : vraies bulles de conversation ---------- */
+.message-thread__history > article {
+  align-items: flex-end;
+}
+
+.message-thread__history > article > div {
+  border-radius: 18px 18px 18px 6px;
+  box-shadow: 0 6px 18px rgba(0, 4, 12, 0.25);
+}
+
+.message-thread__history > article.is-mine {
+  flex-direction: row-reverse;
+}
+
+.message-thread__history > article.is-mine > div {
+  border-radius: 18px 18px 6px 18px;
+}
+
+.message-thread__history > article > span {
+  margin-bottom: 2px;
+}
+
+.messages-list__items > button {
+  border-radius: 14px;
+  margin: 1px 6px;
+  border: 1px solid transparent;
+}
+
+.messages-list__items > button.is-active {
+  border-color: var(--space-accent-line);
+}
+
+.message-composer {
+  border-radius: 999px;
+  margin: 10px 14px 14px;
+}
+
+/* ---------- Apprendre : première fiche en vedette ---------- */
+@media (min-width: 1100px) {
+  .product-lesson-grid > .product-lesson-card:first-child {
+    grid-column: span 2;
+  }
+}
+
+/* ---------- Notifications : rythme visuel ---------- */
+.notification-row {
+  border-radius: 16px;
+}
+
+.notification-row + .notification-row {
+  margin-top: 8px;
+}
