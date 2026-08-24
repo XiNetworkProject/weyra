@@ -7,7 +7,7 @@
     "node": ">=22 <25"
   },
   "scripts": {
-    "dev": "node node_modules/next/dist/bin/next dev --turbopack",
+    "dev": "node scripts/dev.mjs",
     "build": "next build",
     "build:radar-worker": "esbuild scripts/radar-worker.ts --bundle --platform=node --format=esm --conditions=react-server --outfile=dist/radar-worker.mjs",
     "build:production": "pnpm run build && pnpm run build:radar-worker",
