@@ -181,7 +181,7 @@ log "running the isolated pre-switch health check"
     WEYRA_RADAR_CACHE_DIR="${WEYRA_RADAR_CACHE_DIR}" \
     WEYRA_RADAR_MAINTENANCE_MODE=external \
     PYTHON_BIN="${release_dir}/.venv/bin/python" \
-    /usr/bin/node server.js
+    /usr/local/bin/node server.js
 ) > "${incoming_dir}/smoke.log" 2>&1 &
 smoke_pid="$!"
 
