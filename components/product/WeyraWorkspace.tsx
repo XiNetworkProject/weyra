@@ -50,20 +50,20 @@ import type { LocationSelection, Observation, WeatherSnapshot } from "@/lib/type
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 const GLOBAL_NAV: Array<{ id: WeyraSpace; label: string; icon: IconComponent }> = [
-  { id: "home", label: "Accueil", icon: IconHome },
-  { id: "atlas", label: "Atlas", icon: IconRadar },
-  { id: "explore", label: "Explorer", icon: IconCompass },
-  { id: "communities", label: "Communautés", icon: IconUsers },
-  { id: "messages", label: "Messages", icon: IconMessage },
-  { id: "notifications", label: "Notifications", icon: IconBell },
+  { id: "home", label: "Maintenant", icon: IconHome },
+  { id: "atlas", label: "Carte", icon: IconRadar },
+  { id: "explore", label: "Découvrir", icon: IconCompass },
+  { id: "communities", label: "Territoires", icon: IconUsers },
+  { id: "messages", label: "Échanges", icon: IconMessage },
+  { id: "notifications", label: "Veille", icon: IconBell },
 ];
 
 const MOBILE_NAV: Array<{ id: WeyraSpace; label: string; icon: IconComponent }> = [
-  { id: "home", label: "Accueil", icon: IconHome },
-  { id: "atlas", label: "Atlas", icon: IconRadar },
-  { id: "communities", label: "Communautés", icon: IconUsers },
-  { id: "messages", label: "Messages", icon: IconMessage },
-  { id: "profile", label: "Profil", icon: IconUser },
+  { id: "home", label: "Maintenant", icon: IconHome },
+  { id: "atlas", label: "Carte", icon: IconRadar },
+  { id: "communities", label: "Territoires", icon: IconUsers },
+  { id: "messages", label: "Échanges", icon: IconMessage },
+  { id: "profile", label: "Moi", icon: IconUser },
 ];
 
 type WeyraWorkspaceProps = {
@@ -190,17 +190,17 @@ export default function WeyraWorkspace({
 
       <header className="weyra-shell-topbar">
         <button className="weyra-shell-topbar__brand" type="button" onClick={() => navigate("home")}>
-          <b>weyra</b><span>{space === "communities" ? "communautés" : space === "messages" ? "messages" : space === "explore" ? "explorer" : space === "home" ? "accueil" : space}</span>
+          <b>weyra</b><span>réseau terrain</span>
         </button>
-        <span className="weyra-demo-chip"><i />Démo sociale locale</span>
+        <span className="weyra-demo-chip"><i />Données locales · démo</span>
         <div className={`weyra-global-search${searchOpen ? " is-open" : ""}`}>
           <IconSearch />
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onFocus={() => setSearchOpen(true)}
-            placeholder="Rechercher dans Weyra"
-            aria-label="Rechercher dans Weyra"
+            placeholder="Lieu, phénomène ou communauté"
+            aria-label="Rechercher un lieu, un phénomène ou une communauté"
             aria-expanded={searchOpen}
           />
           <kbd>⌘K</kbd>
@@ -237,12 +237,12 @@ export default function WeyraWorkspace({
         </div>
         <div className="weyra-shell-topbar__actions">
           <div className="weyra-create-menu">
-            <button className="weyra-create-button" type="button" onClick={() => setCreateOpen((value) => !value)} aria-expanded={createOpen}><IconPlus /><span>Créer</span></button>
+            <button className="weyra-create-button" type="button" onClick={() => setCreateOpen((value) => !value)} aria-expanded={createOpen}><IconPlus /><span>Observer</span></button>
             {createOpen && (
               <>
                 <button className="weyra-create-menu__backdrop" type="button" onClick={() => setCreateOpen(false)} aria-label="Fermer" />
                 <div className="weyra-create-menu__panel">
-                  <header><span>Créer dans ce contexte</span><button type="button" onClick={() => setCreateOpen(false)} title="Fermer" aria-label="Fermer"><IconClose /></button></header>
+                  <header><span>Partager depuis le terrain</span><button type="button" onClick={() => setCreateOpen(false)} title="Fermer" aria-label="Fermer"><IconClose /></button></header>
                   <button type="button" onClick={() => { setCreateOpen(false); onCreateObservation(); }}><IconCloud /><span><b>Observation</b><small>Phénomène, zone et média</small></span></button>
                   <button type="button" onClick={() => { setCreateOpen(false); openCommunity(selectedCommunityId); }}><IconMessage /><span><b>Publication</b><small>Dans la communauté actuelle</small></span></button>
                   <button type="button" onClick={() => { setCreateOpen(false); openCommunity(selectedCommunityId); onToast("Ouvre l’espace Événements pour préparer la page dédiée."); }}><IconActivity /><span><b>Événement</b><small>Date, carte et participants</small></span></button>

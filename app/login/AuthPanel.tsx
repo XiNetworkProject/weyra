@@ -9,9 +9,9 @@ import styles from "@/app/login/login.module.css";
 type AuthMode = "signin" | "signup";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  auth_callback: "La connexion n'a pas pu etre finalisee. Reessaie depuis cet ecran.",
-  auth_confirmation: "Ce lien de confirmation est invalide ou a expire.",
-  supabase_unavailable: "Le service de compte Weyra n'est pas encore configure.",
+  auth_callback: "La connexion n'a pas pu être finalisée. Réessaie depuis cet écran.",
+  auth_confirmation: "Ce lien de confirmation est invalide ou a expiré.",
+  supabase_unavailable: "Le service de compte Weyra n'est pas encore configuré.",
 };
 
 export default function AuthPanel({ configured }: { configured: boolean }) {
@@ -39,7 +39,7 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
 
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setMessage("Supabase n'est pas configure sur cet environnement.");
+      setMessage("Supabase n'est pas configuré sur cet environnement.");
       return;
     }
 
@@ -78,7 +78,7 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
     }
 
     setSuccess(true);
-    setMessage("Compte cree. Consulte ta boite mail pour confirmer ton adresse.");
+    setMessage("Compte créé. Consulte ta boîte mail pour confirmer ton adresse.");
   }
 
   async function requestPasswordReset() {
@@ -106,8 +106,8 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
     <section className={styles.panel} aria-labelledby="auth-title">
       <header>
         <span>Compte Weyra</span>
-        <h2 id="auth-title">{mode === "signin" ? "Bon retour parmi nous" : "Rejoins le reseau"}</h2>
-        <p>{mode === "signin" ? "Retrouve ton Atlas et tes communautes." : "Cree un profil public simple. Tu gardes le controle de tes donnees."}</p>
+        <h2 id="auth-title">{mode === "signin" ? "Bon retour parmi nous" : "Rejoins le réseau"}</h2>
+        <p>{mode === "signin" ? "Retrouve ton Atlas et tes communautés." : "Crée un profil public simple. Tu gardes le contrôle de tes données."}</p>
       </header>
 
       <div className={styles.tabs} role="tablist" aria-label="Mode d'authentification">
@@ -118,7 +118,7 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
       <form onSubmit={submit}>
         {mode === "signup" && (
           <label>
-            Nom affiche
+            Nom affiché
             <input
               autoComplete="nickname"
               maxLength={32}
@@ -161,16 +161,16 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
         )}
 
         {message && <p className={`${styles.message} ${success ? styles.success : ""}`} role="status">{message}</p>}
-        {!configured && <p className={styles.notice}>Le backend Supabase Weyra n&apos;est pas encore provisionne. Le mode demo local reste disponible.</p>}
+        {!configured && <p className={styles.notice}>Le backend Supabase Weyra n&apos;est pas encore provisionné. Le mode démo local reste disponible.</p>}
 
         <button className={styles.submit} disabled={!configured || pending} type="submit">
-          {pending ? "Connexion en cours..." : mode === "signin" ? "Se connecter" : "Creer mon compte"}
+          {pending ? "Connexion en cours..." : mode === "signin" ? "Se connecter" : "Créer mon compte"}
         </button>
       </form>
 
       <footer>
-        <Link href="/">Continuer en mode demo</Link>
-        <small>En continuant, tu acceptes les regles communautaires et la politique de confidentialite de Weyra.</small>
+        <Link href="/">Continuer en mode démo</Link>
+        <small>En continuant, tu acceptes les règles communautaires et la politique de confidentialité de Weyra.</small>
       </footer>
     </section>
   );

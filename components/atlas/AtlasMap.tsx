@@ -76,7 +76,7 @@ const OPERA_DETAIL_HANDOFF_MS = 0;
 const OPERA_DETAIL_SOURCE_ID = "opera-radar-detail-source";
 const OPERA_DETAIL_LAYER_ID = "opera-radar-detail-layer";
 const OPERA_TILE_LOAD_TIMEOUT_MS = 2200;
-const WEYRA_BASE_MAP_STYLE = "/map-styles/weyra-atlas-v3.json";
+const WEYRA_BASE_MAP_STYLE = "/map-styles/weyra-atlas-fieldglass-v1.json";
 const RADAR_INSERT_BEFORE_LAYER_ID = "boundary_country_outline";
 // A freshly published observation gets a soft pulsing halo for this long, then settles down.
 const OBSERVATION_FRESH_WINDOW_MS = 10 * 60_000;

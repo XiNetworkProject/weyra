@@ -12,7 +12,7 @@ export default function UpdatePasswordPage() {
     <main className={`${styles.page} ${styles.single}`}>
       <header className={styles.header}>
         <Link href="/" className={styles.brand}>weyra</Link>
-        <Link href="/" className={styles.back}>Retour a l&apos;Atlas</Link>
+        <Link href="/" className={styles.back}>Retour à l&apos;Atlas</Link>
       </header>
       <UpdatePasswordForm />
     </main>

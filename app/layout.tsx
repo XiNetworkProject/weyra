@@ -3,6 +3,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import "./product.css";
 import "./community.css";
+import "./weyra-theme.css";
 
 export const metadata: Metadata = {
   title: "Weyra - le ciel près de toi",
@@ -28,7 +29,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   colorScheme: "dark",
-  themeColor: "#030a14",
+  themeColor: "#0a0c0d",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -39,7 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
         />
       </head>
       <body>{children}</body>

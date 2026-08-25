@@ -22,6 +22,7 @@ import { PRODUCT_AUTHORS, PRODUCT_POSTS } from "@/lib/product-fixtures";
 import { SOCIAL_DEMO_STATS } from "@/lib/social-demo-data";
 import type { WeyraSpace } from "@/lib/product-domain";
 import type { LocationSelection, Observation, WeatherSnapshot } from "@/lib/types";
+import { weatherCodeInfo } from "@/lib/weather";
 
 type HomeViewProps = {
   location: LocationSelection;
@@ -44,7 +45,7 @@ export default function HomeView({
   onOpenObservation,
   onCreateObservation,
 }: HomeViewProps) {
-  const { backend, state } = useWeyraProduct();
+  const { state } = useWeyraProduct();
   const joinedCommunities = [...state.createdCommunities, ...COMMUNITIES]
     .filter((community) => state.joinedCommunityIds.includes(community.id))
     .slice(0, 3);
@@ -57,89 +58,104 @@ export default function HomeView({
     .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
     .slice(0, 3);
   const weatherLabel = weather ? `${Math.round(weather.temperature)}°` : "--°";
+  const weatherCondition = weather ? weatherCodeInfo(weather.weatherCode).label : "Mesure en cours";
+  const leadPost = recentPosts[0];
+
+  function openPost(post: (typeof recentPosts)[number]) {
+    if (post.observationId) onOpenObservation(post.observationId);
+    else onOpenMap(post.lat, post.lon);
+  }
 
   return (
-    <div className="weyra-page home-view">
-      <header className="weyra-page-heading">
+    <div className="weyra-page home-view field-home">
+      <header className="field-home__heading">
         <div>
-          <span>Accueil personnel</span>
-          <h1>Bonjour {state.profile.displayName}</h1>
-          <p>Le ciel, les communautés et les informations utiles autour de {location.name}.</p>
+          <span><i />Maintenant · {location.name}</span>
+          <h1>Le terrain raconte<br />ce que le ciel prépare.</h1>
+          <p>Radar, mesures et regards humains réunis dans une même lecture locale.</p>
         </div>
-        <button className="weyra-primary-action" type="button" onClick={onCreateObservation}>
-          <IconPlus />Publier une observation
-        </button>
+        <div>
+          <button type="button" onClick={() => onOpenMap(location.lat, location.lon)}><IconRadar />Voir la carte</button>
+          <button className="is-primary" type="button" onClick={onCreateObservation}><IconPlus />Observer</button>
+        </div>
       </header>
 
-      <div className="home-bento">
-        {/* Météo locale — pièce maîtresse */}
-        <section className="home-bento__tile home-bento__tile--weather" aria-label={`Situation autour de ${location.name}`}>
-          <small><IconCloud />Situation locale · {location.name}</small>
-          <div className="home-bento__weather-main">
+      <section className="field-home__live" aria-label={`Situation autour de ${location.name}`}>
+        <button
+          className="field-home__scene"
+          type="button"
+          onClick={() => onOpenMap(location.lat, location.lon)}
+          style={{ "--field-scene": `url(${leadPost?.imageUrl ?? "/media/observations/arcus-champs.webp"})` } as never}
+        >
+          <span className="field-home__scene-shade" />
+          <header>
+            <span><i />Observation terrain · {leadPost?.place ?? location.name}</span>
+            <small>{leadPost ? formatRelativeTime(leadPost.publishedAt) : "À l’instant"}</small>
+          </header>
+          <div className="field-home__scene-copy">
             <strong>{weatherLabel}</strong>
-            <div>
-              <b>Averses irrégulières</b>
-              <small>Radar contrasté sur la zone, signalements humains actifs au sud-est.</small>
-            </div>
+            <span>
+              <b>{weatherCondition}</b>
+              <small>Mesure locale · {location.name}</small>
+            </span>
           </div>
-          <div className="home-bento__weather-metrics">
-            <span><IconWind /><b>{weather ? Math.round(weather.windSpeed) : "--"}</b><small>km/h de vent</small></span>
-            <span><IconCompass /><b>{observations.length}</b><small>signaux actifs</small></span>
-            <span><IconRadar /><b>{SOCIAL_DEMO_STATS.activeObservations.toLocaleString("fr-FR")}</b><small>observations réseau</small></span>
-          </div>
-          <div className="home-bento__actions">
-            <button type="button" onClick={() => onOpenMap(location.lat, location.lon)}><IconRadar />Ouvrir Atlas</button>
-            <button type="button" onClick={() => onNavigate("notifications")}><IconBell />Voir l’essentiel</button>
-          </div>
-        </section>
-
-        {/* Pouls social */}
-        <section className="home-bento__tile home-bento__tile--pulse" aria-label="Activité sociale">
-          <small><IconUsers />{backend.status === "authenticated" ? "Réseau synchronisé" : "Mode démonstration sociale"}</small>
-          <div className="home-bento__pulse-row">
-            <div className="home-bento__pulse-avatars">
-              {allAuthors.slice(0, 7).map((author) => (
-                <i key={author.id} style={{ "--pulse-accent": author.accent } as never}>{author.initials}</i>
-              ))}
-            </div>
-            <div>
-              <b>{SOCIAL_DEMO_STATS.communityMessages.toLocaleString("fr-FR")} messages aujourd’hui</b>
-              <small>{SOCIAL_DEMO_STATS.communities} communautés · {SOCIAL_DEMO_STATS.posts.toLocaleString("fr-FR")} publications</small>
-            </div>
-            <button type="button" onClick={() => onNavigate("feed")}>Ouvrir le flux<IconChevronRight /></button>
-          </div>
-        </section>
-
-        {/* Événement à venir */}
-        {event && (
-          <section className="home-bento__tile home-bento__tile--event">
-            <div className="home-bento__event-media">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={event.imageUrl} alt="" />
-              <span><IconClock />À venir</span>
-            </div>
-            <div>
-              <small>{new Intl.DateTimeFormat("fr-FR", { weekday: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(event.startsAt))}</small>
-              <b>{event.title}</b>
-              <p>{event.summary}</p>
-              <button type="button" onClick={() => onOpenCommunity(event.communityId)}>Voir l’événement<IconChevronRight /></button>
-            </div>
-          </section>
-        )}
-
-        {/* Appel vers Atlas */}
-        <button className="home-bento__tile home-bento__tile--atlas" type="button" onClick={() => onOpenMap(location.lat, location.lon)}>
-          <IconRadar />
-          <div>
-            <b>Atlas en direct</b>
-            <small>Radar OPERA réel et observations du terrain, centrés sur ta zone.</small>
-          </div>
+          <footer>
+            <span><IconWind /><b>{weather ? Math.round(weather.windSpeed) : "--"} km/h</b><small>Vent</small></span>
+            <span><IconCloud /><b>{weather ? weather.humidity : "--"}%</b><small>Humidité</small></span>
+            <span><IconCompass /><b>{observations.length}</b><small>Signaux proches</small></span>
+            <em>Explorer sur la carte <IconChevronRight /></em>
+          </footer>
         </button>
 
-        {/* Communautés suivies */}
-        <section className="home-bento__tile home-bento__tile--communities">
-          <small><IconUsers />Tes lieux vivants</small>
-          <div className="home-bento__community-rows">
+        <aside className="field-home__signals">
+          <header>
+            <div><span><i />En direct</span><h2>Signaux du terrain</h2></div>
+            <button type="button" onClick={onCreateObservation} title="Ajouter une observation" aria-label="Ajouter une observation"><IconPlus /></button>
+          </header>
+          <div>
+            {recentPosts.map((post) => {
+              const author = authorById.get(post.authorId);
+              const phenomenon = post.phenomena[0];
+              const meta = CATEGORY_META[phenomenon];
+              const PhenomenonIcon = meta.icon;
+              return (
+                <button key={post.id} type="button" onClick={() => openPost(post)}>
+                  <span className="field-home__signal-media">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={post.imageUrl} alt="" />
+                    <i><PhenomenonIcon /></i>
+                  </span>
+                  <span>
+                    <small>{formatRelativeTime(post.publishedAt)} · {post.place}</small>
+                    <b>{post.title}</b>
+                    <em>{author?.displayName ?? "Communauté"} · observation terrain</em>
+                  </span>
+                  <IconChevronRight />
+                </button>
+              );
+            })}
+          </div>
+          <footer>
+            <button type="button" onClick={() => onNavigate("feed")}>Ouvrir le journal en direct<IconChevronRight /></button>
+          </footer>
+        </aside>
+      </section>
+
+      <section className="field-home__network" aria-label="État du réseau Weyra">
+        <span><i />Réseau actif</span>
+        <div className="field-home__network-avatars">
+          {allAuthors.slice(0, 6).map((author) => (
+            <i key={author.id} style={{ "--pulse-accent": author.accent } as never}>{author.initials}</i>
+          ))}
+        </div>
+        <p><b>{SOCIAL_DEMO_STATS.activeObservations.toLocaleString("fr-FR")} observations</b> partagées aujourd’hui dans {SOCIAL_DEMO_STATS.communities} territoires.</p>
+        <button type="button" onClick={() => onNavigate("explore")}>Voir où le réseau est actif<IconChevronRight /></button>
+      </section>
+
+      <div className="field-home__below">
+        <section className="field-home__territories">
+          <header><div><span>À portée de regard</span><h2>Territoires suivis</h2></div><button type="button" onClick={() => onNavigate("explore")}>Découvrir<IconChevronRight /></button></header>
+          <div>
             {joinedCommunities.map((community) => (
               <button key={community.id} type="button" onClick={() => onOpenCommunity(community.id)}>
                 <CommunityMark community={community} compact />
@@ -147,60 +163,31 @@ export default function HomeView({
                 <em><i />{community.activeCount} actifs</em>
               </button>
             ))}
-            <button type="button" onClick={() => onNavigate("explore")}>
-              <span className="home-bento__shortcut-icon"><IconCompass /></span>
-              <span><b>Découvrir autour de toi</b><small>Communautés, événements et thèmes</small></span>
-              <IconChevronRight />
-            </button>
           </div>
         </section>
 
-        {/* Dernières publications */}
-        <section className="home-bento__tile home-bento__tile--feed">
-          <small><IconMessage />Près de toi, récemment</small>
-          <div className="home-bento__feed-list">
-            {recentPosts.map((post) => {
-              const author = authorById.get(post.authorId);
-              const phenomenon = post.phenomena[0];
-              const meta = CATEGORY_META[phenomenon];
-              const PhenomenonIcon = meta.icon;
-              return (
-                <article key={post.id}>
-                  <button className="home-bento__feed-media" type="button" onClick={() => onOpenMap(post.lat, post.lon)} aria-label={`Voir ${post.title} sur Atlas`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={post.imageUrl} alt="" />
-                    <span><PhenomenonIcon /></span>
-                  </button>
-                  <div>
-                    <small>{author?.displayName ?? "Communauté"} · {formatRelativeTime(post.publishedAt)} · {post.place}</small>
-                    <h3>{post.title}</h3>
-                    <p>{post.body}</p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+        {event && (
+          <section className="field-home__event">
+            <button type="button" onClick={() => onOpenCommunity(event.communityId)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={event.imageUrl} alt="" />
+              <span><IconClock />Prochain rendez-vous</span>
+              <div>
+                <small>{new Intl.DateTimeFormat("fr-FR", { weekday: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(event.startsAt))}</small>
+                <h2>{event.title}</h2>
+                <p>{event.summary}</p>
+                <em>Voir l’événement<IconChevronRight /></em>
+              </div>
+            </button>
+          </section>
+        )}
 
-        {/* Raccourcis */}
-        <section className="home-bento__tile home-bento__tile--shortcuts">
-          <small><IconCompass />Raccourcis</small>
-          <div className="home-bento__shortcut-rows">
-            <button type="button" style={{ "--shortcut-color": "#f472b6" } as never} onClick={() => onNavigate("messages")}>
-              <span><IconMessage /></span>
-              <span><b>Messages</b><small>Conversations actives</small></span>
-              <IconChevronRight />
-            </button>
-            <button type="button" style={{ "--shortcut-color": "#2dd4bf" } as never} onClick={() => onNavigate("learn")}>
-              <span><IconBook /></span>
-              <span><b>Apprendre</b><small>Fiches météo courtes</small></span>
-              <IconChevronRight />
-            </button>
-            <button type="button" style={{ "--shortcut-color": "#fbbf24" } as never} onClick={() => onNavigate("communities")}>
-              <span><IconUsers /></span>
-              <span><b>Communautés</b><small>{SOCIAL_DEMO_STATS.communities} territoires</small></span>
-              <IconChevronRight />
-            </button>
+        <section className="field-home__tools">
+          <header><span>Aller plus loin</span><h2>Comprendre, suivre, échanger</h2></header>
+          <div>
+            <button type="button" onClick={() => onNavigate("learn")}><IconBook /><span><b>Comprendre</b><small>Décoder les phénomènes</small></span><IconChevronRight /></button>
+            <button type="button" onClick={() => onNavigate("messages")}><IconMessage /><span><b>Échanger</b><small>Conversations en cours</small></span><IconChevronRight /></button>
+            <button type="button" onClick={() => onNavigate("notifications")}><IconBell /><span><b>Ma veille</b><small>Uniquement les signaux utiles</small></span><IconChevronRight /></button>
           </div>
         </section>
       </div>

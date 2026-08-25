@@ -1317,7 +1317,7 @@ export default function AtlasApp() {
       <header className="atlas-topbar">
         <div className="atlas-brand" aria-label="Weyra Atlas">
           <span>weyra</span>
-          <i>atlas</i>
+          <i>terrain</i>
         </div>
         <div className="atlas-search">
           <IconSearch className="atlas-search__icon" />
@@ -1327,8 +1327,8 @@ export default function AtlasApp() {
             onChange={(event) => setQuery(event.target.value)}
             onFocus={() => { setSearchFocused(true); setSearchOpen(true); }}
             onBlur={() => window.setTimeout(() => { setSearchFocused(false); setSearchOpen(false); }, 140)}
-            placeholder="Rechercher une ville"
-            aria-label="Rechercher une ville"
+            placeholder="Lieu ou coordonnées"
+            aria-label="Rechercher un lieu ou des coordonnées"
             aria-expanded={searchOpen}
           />
           <kbd>⌘K</kbd>
@@ -1369,7 +1369,7 @@ export default function AtlasApp() {
               <>
                 <button className="atlas-menu__backdrop" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu" />
                 <div className="atlas-menu__panel">
-                  <button onClick={openObservationComposer}><IconPlus />Ajouter une observation</button>
+                  <button onClick={openObservationComposer}><IconPlus />Partager une observation</button>
                   <button onClick={() => { setMenuOpen(false); setMobileLayersOpen(true); }}><IconSliders />Couches Atlas</button>
                   <button onClick={() => { setMenuOpen(false); useCurrentPosition(); }}><IconNavigation />Utiliser ma position</button>
                   <button onClick={() => navigateProductSpace("home")}><IconHome />Accueil Weyra</button>
@@ -1481,7 +1481,7 @@ export default function AtlasApp() {
 
       <button className="atlas-report-fab" type="button" onClick={openObservationComposer}>
         <span><IconPlus /></span>
-        <b>Signaler</b>
+        <b>Observer</b>
       </button>
 
       <section className="atlas-map-tools" aria-label="Contrôles de la carte">
@@ -1492,8 +1492,8 @@ export default function AtlasApp() {
         </div>
       </section>
 
-      <section className={`atlas-radar-legend${radarVisible ? "" : " is-hidden"}`} aria-label="Échelle d’intensité des précipitations">
-        <b>Intensité radar (mm/h)</b><div /><small><span>0,1</span><span>1</span><span>3</span><span>10</span><span>30</span><span>100+</span></small>
+      <section className={`atlas-radar-legend${radarVisible ? "" : " is-hidden"}`} aria-label="Échelle de réflectivité radar">
+        <b>Réflectivité radar (dBZ)</b><div /><small><span>5.5</span><span>11</span><span>18</span><span>27</span><span>35</span><span>50+</span></small>
       </section>
 
       <section className={`atlas-timeline atlas-timeline--v3${operaPlaying ? " is-playing" : ""}`} aria-label="Animation radar OPERA">
@@ -1598,19 +1598,19 @@ export default function AtlasApp() {
       )}
       <nav className="atlas-mobile-nav" aria-label="Actions principales">
         <button type="button" onClick={() => navigateProductSpace("home")}>
-          <IconHome /><span>Accueil</span>
+          <IconHome /><span>Maintenant</span>
         </button>
         <button type="button" className="is-active" onClick={closeProductWorkspace} aria-current="page">
-          <IconRadar /><span>Atlas</span>
+          <IconRadar /><span>Carte</span>
         </button>
         <button type="button" onClick={() => navigateProductSpace("communities")}>
-          <IconUsers /><span>Communautés</span>
+          <IconUsers /><span>Territoires</span>
         </button>
         <button type="button" onClick={() => navigateProductSpace("messages")}>
-          <span className="atlas-mobile-nav__icon-with-badge"><IconCloud />{unreadActivityCount > 0 && <i>{Math.min(99, unreadActivityCount)}</i>}</span><span>Messages</span>
+          <span className="atlas-mobile-nav__icon-with-badge"><IconCloud />{unreadActivityCount > 0 && <i>{Math.min(99, unreadActivityCount)}</i>}</span><span>Échanges</span>
         </button>
         <button type="button" onClick={() => navigateProductSpace("profile")}>
-          <IconUser /><span>Profil</span>
+          <IconUser /><span>Moi</span>
         </button>
       </nav>
 
