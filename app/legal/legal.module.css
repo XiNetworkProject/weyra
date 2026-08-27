@@ -1,0 +1,197 @@
+.page {
+  min-height: 100svh;
+  color: #dce9f7;
+  background: #06111d;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+}
+
+.header {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 clamp(20px, 5vw, 72px);
+  border-bottom: 1px solid rgba(137, 177, 205, 0.12);
+  color: #839bad;
+  font:
+    500 11px/1 "IBM Plex Mono",
+    monospace;
+}
+
+.header a {
+  color: inherit;
+  text-decoration: none;
+}
+.header .brand {
+  color: #f1f7fb;
+  font:
+    700 25px/1 "Instrument Sans",
+    sans-serif;
+}
+
+.hero,
+.document {
+  width: min(920px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.hero {
+  padding: clamp(70px, 12vw, 132px) 0 70px;
+}
+.hero > p:first-child,
+.documentTitle > p:first-child {
+  color: #55c2ff;
+  font:
+    600 11px/1.4 "IBM Plex Mono",
+    monospace;
+}
+
+.hero h1,
+.documentTitle h1 {
+  max-width: 840px;
+  margin: 14px 0 20px;
+  color: #f0f6fa;
+  font-size: clamp(38px, 7vw, 70px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.hero > p:last-child,
+.documentTitle > p:nth-of-type(2) {
+  max-width: 660px;
+  color: #91a8ba;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.grid {
+  width: min(1180px, calc(100% - 40px));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 auto;
+  padding-bottom: 90px;
+  background: rgba(137, 177, 205, 0.12);
+  border: 1px solid rgba(137, 177, 205, 0.12);
+}
+
+.grid a {
+  min-height: 220px;
+  padding: 30px;
+  color: inherit;
+  background: #081827;
+  text-decoration: none;
+  transition: background 160ms ease;
+}
+
+.grid a:hover {
+  background: #0b1d2e;
+}
+.grid span,
+.grid small,
+.documentTitle small {
+  color: #6f8a9e;
+  font:
+    500 10px/1.4 "IBM Plex Mono",
+    monospace;
+}
+
+.grid h2 {
+  max-width: 420px;
+  margin: 28px 0 10px;
+  font-size: 22px;
+}
+.grid p {
+  max-width: 460px;
+  min-height: 52px;
+  color: #91a8ba;
+  line-height: 1.55;
+}
+
+.document {
+  padding: clamp(64px, 10vw, 110px) 0 100px;
+}
+.documentTitle {
+  padding-bottom: 52px;
+  border-bottom: 1px solid rgba(137, 177, 205, 0.14);
+}
+.documentTitle h1 {
+  font-size: clamp(36px, 7vw, 62px);
+}
+.documentTitle small {
+  display: block;
+  margin-top: 24px;
+}
+
+.notice {
+  margin: 32px 0 58px;
+  padding: 16px 18px;
+  color: #b8c8d5;
+  border-left: 2px solid #55c2ff;
+  background: #081827;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.section {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.36fr) minmax(0, 1fr);
+  column-gap: 48px;
+  padding: 42px 0;
+  border-bottom: 1px solid rgba(137, 177, 205, 0.1);
+}
+
+.section h2 {
+  margin: 0;
+  color: #dce9f7;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.section p,
+.section ul {
+  grid-column: 2;
+  margin: 0 0 15px;
+  color: #9db2c2;
+  font-size: 14px;
+  line-height: 1.72;
+}
+.section ul {
+  padding-left: 18px;
+}
+.section li + li {
+  margin-top: 9px;
+}
+
+.references {
+  padding-top: 46px;
+}
+.references h2 {
+  margin: 0 0 18px;
+  font-size: 15px;
+}
+.references a {
+  display: block;
+  width: fit-content;
+  margin: 8px 0;
+  color: #67d9f4;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .grid a {
+    min-height: 190px;
+    padding: 24px;
+  }
+  .section {
+    grid-template-columns: 1fr;
+    row-gap: 18px;
+  }
+  .section p,
+  .section ul {
+    grid-column: 1;
+  }
+}

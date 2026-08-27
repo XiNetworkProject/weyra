@@ -4,23 +4,11 @@ export type SupabasePublicConfig = {
 };
 
 export function getSupabasePublicConfig(): SupabasePublicConfig | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
-
-  if (!url || !publishableKey) return null;
-
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  return { url, publishableKey };
+  // Supabase is a retired prototype adapter. Weyra's target data platform is its
+  // own PostgreSQL/auth/media stack, so legacy credentials must never activate it.
+  return null;
 }
 
 export function isSupabaseConfigured() {
-  return getSupabasePublicConfig() !== null;
+  return false;
 }

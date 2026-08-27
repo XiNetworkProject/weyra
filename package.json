@@ -13,11 +13,21 @@
     "build:production": "pnpm run build && pnpm run build:radar-worker",
     "start": "next start",
     "check": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "node scripts/check-format.mjs --write",
+    "format:check": "node scripts/check-format.mjs",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:pwa-production": "node scripts/test-pwa-production.mjs",
+    "quality": "pnpm run format:check && pnpm run lint && pnpm run check && pnpm run test:coverage",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
     "supabase:lint": "supabase db lint --local --level warning",
-    "supabase:status": "supabase status"
+    "supabase:status": "supabase status",
+    "supabase:verify:staging": "node --env-file-if-exists=.env.local scripts/verify-supabase-staging.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
@@ -29,17 +39,17 @@
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "24.5.2",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "@vitest/coverage-v8": "^4.1.11",
     "esbuild": "0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.2.11",
+    "prettier": "^3.9.6",
     "supabase": "2.109.1",
-    "typescript": "6.0.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp"
-    ]
+    "typescript": "6.0.3",
+    "vitest": "^4.1.11"
   }
 }

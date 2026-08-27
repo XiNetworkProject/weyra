@@ -9,8 +9,13 @@ __pycache__
 *.pyc
 tsconfig.tsbuildinfo
 .radar-cache
+.e2e-radar-cache
 artifacts/
 dist/
+radar-worker/bin/
+coverage/
+playwright-report/
+test-results/
 .claude/
 
 .vercel

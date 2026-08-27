@@ -267,7 +267,10 @@ def parse_georeferencing(
     return projection_bounds, maplibre_coordinates, geographic_bounds, None
 
 
-PALETTE_VERSION = "weyra-v3"
+with Path(__file__).with_name("render-contract.json").open(encoding="utf-8") as contract_file:
+    RENDER_CONTRACT = json.load(contract_file)
+
+PALETTE_VERSION = str(RENDER_CONTRACT["framePaletteVersion"])
 DIAGNOSTIC_PERCENTILES = [1, 5, 25, 50, 75, 95, 99]
 SOURCE_GRID_NODATA = -9999.0
 

@@ -13,14 +13,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WEYRA_RADAR_MAINTENANCE_MODE: external
+      FORMAT_BASE_SHA: ${{ github.event.before }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pinned pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Formatting check
+        run: pnpm run format:check
+
+      - name: ESLint
+        run: pnpm run lint
+
+      - name: TypeScript check
+        run: pnpm run check
+
+      - name: Unit tests and coverage
+        run: pnpm run test:coverage
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: API and browser smoke tests
+        run: pnpm run test:e2e
+
+      - name: Production PWA install and offline test
+        run: pnpm run test:e2e:pwa-production
+
   build:
+    needs: quality
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 25
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       WEYRA_RADAR_MAINTENANCE_MODE: external
-      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
     steps:
       - name: Checkout
@@ -36,6 +81,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build the official Météo-France BUFR decoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zlib1g-dev
+          bash radar-worker/build_meteofrance_decoder.sh
+          test -x radar-worker/bin/decode_meteofrance_bufr
 
       - name: TypeScript check
         run: pnpm run check

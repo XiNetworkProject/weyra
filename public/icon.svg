@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Weyra">
+  <rect width="512" height="512" rx="112" fill="#071521"/>
+  <path d="M92 150l58 218h64l42-137 42 137h64l58-218h-58l-35 149-44-149h-54l-44 149-35-149z" fill="#eaf6ff"/>
+  <path d="M90 118c62-46 139-62 219-43 43 10 82 29 113 57" fill="none" stroke="#55c2ff" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="408" cy="129" r="17" fill="#62f2dc"/>
+</svg>

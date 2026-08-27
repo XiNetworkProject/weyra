@@ -128,6 +128,7 @@ export type OperaFrameManifest = {
 };
 
 export type OperaScanPackCoverage = { west: number; south: number; east: number; north: number };
+export type RadarDataProvider = "Météo-France" | "EUMETNET OPERA";
 
 export type OperaScanPackSummary = {
   timestamp: string;
@@ -143,6 +144,13 @@ export type OperaScanPackSummary = {
   baseTileCount: number;
   detailTileCount: number;
   coverage: OperaScanPackCoverage | null;
+  provider: RadarDataProvider;
+  attribution: string;
+  sourceProduct: string;
+  sourceFormat: string;
+  nativeResolutionMeters: number | null;
+  displayFilter: string | null;
+  rainProbabilityThreshold: number | null;
   packBytes?: number;
   buildDurationMs?: number;
 };
@@ -160,7 +168,9 @@ export type OperaScanPackMaintenance = {
 
 export type OperaScanPackListResponse = {
   ok: boolean;
-  provider: "EUMETNET OPERA";
+  provider: RadarDataProvider | "Weyra Radar";
+  providers?: RadarDataProvider[];
+  attribution?: string | null;
   product: "DBZH";
   packs: OperaScanPackSummary[];
   maintenance?: OperaScanPackMaintenance;

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import PwaRegistrar from "@/components/platform/PwaRegistrar";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import "./product.css";
@@ -43,7 +44,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaRegistrar />
+      </body>
     </html>
   );
 }

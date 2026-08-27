@@ -11,7 +11,7 @@ type AuthMode = "signin" | "signup";
 const ERROR_MESSAGES: Record<string, string> = {
   auth_callback: "La connexion n'a pas pu être finalisée. Réessaie depuis cet écran.",
   auth_confirmation: "Ce lien de confirmation est invalide ou a expiré.",
-  supabase_unavailable: "Le service de compte Weyra n'est pas encore configuré.",
+  supabase_unavailable: "Le service de compte Weyra auto-hébergé n'est pas encore disponible.",
 };
 
 export default function AuthPanel({ configured }: { configured: boolean }) {
@@ -24,7 +24,7 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
   const [resetPending, setResetPending] = useState(false);
   const [message, setMessage] = useState<string | null>(() => {
     const error = searchParams.get("error");
-    return error ? ERROR_MESSAGES[error] ?? "Une erreur d'authentification est survenue." : null;
+    return error ? (ERROR_MESSAGES[error] ?? "Une erreur d'authentification est survenue.") : null;
   });
   const [success, setSuccess] = useState(false);
 
@@ -39,7 +39,7 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
 
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setMessage("Supabase n'est pas configuré sur cet environnement.");
+      setMessage("Le service de compte Weyra n'est pas configuré sur cet environnement.");
       return;
     }
 
@@ -107,12 +107,34 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
       <header>
         <span>Compte Weyra</span>
         <h2 id="auth-title">{mode === "signin" ? "Bon retour parmi nous" : "Rejoins le réseau"}</h2>
-        <p>{mode === "signin" ? "Retrouve ton Atlas et tes communautés." : "Crée un profil public simple. Tu gardes le contrôle de tes données."}</p>
+        <p>
+          {mode === "signin"
+            ? "Retrouve ton Atlas et tes communautés."
+            : "Crée un profil public simple. Tu gardes le contrôle de tes données."}
+        </p>
       </header>
 
       <div className={styles.tabs} role="tablist" aria-label="Mode d'authentification">
-        <button type="button" className={mode === "signin" ? styles.active : ""} onClick={() => { setMode("signin"); setMessage(null); }}>Connexion</button>
-        <button type="button" className={mode === "signup" ? styles.active : ""} onClick={() => { setMode("signup"); setMessage(null); }}>Inscription</button>
+        <button
+          type="button"
+          className={mode === "signin" ? styles.active : ""}
+          onClick={() => {
+            setMode("signin");
+            setMessage(null);
+          }}
+        >
+          Connexion
+        </button>
+        <button
+          type="button"
+          className={mode === "signup" ? styles.active : ""}
+          onClick={() => {
+            setMode("signup");
+            setMessage(null);
+          }}
+        >
+          Inscription
+        </button>
       </div>
 
       <form onSubmit={submit}>
@@ -155,13 +177,26 @@ export default function AuthPanel({ configured }: { configured: boolean }) {
           />
         </label>
         {mode === "signin" && (
-          <button className={styles.forgot} disabled={!configured || resetPending} onClick={() => void requestPasswordReset()} type="button">
+          <button
+            className={styles.forgot}
+            disabled={!configured || resetPending}
+            onClick={() => void requestPasswordReset()}
+            type="button"
+          >
             {resetPending ? "Envoi en cours..." : "Mot de passe oublié ?"}
           </button>
         )}
 
-        {message && <p className={`${styles.message} ${success ? styles.success : ""}`} role="status">{message}</p>}
-        {!configured && <p className={styles.notice}>Le backend Supabase Weyra n&apos;est pas encore provisionné. Le mode démo local reste disponible.</p>}
+        {message && (
+          <p className={`${styles.message} ${success ? styles.success : ""}`} role="status">
+            {message}
+          </p>
+        )}
+        {!configured && (
+          <p className={styles.notice}>
+            Le backend auto-hébergé Weyra est en préparation. Le mode démo local reste disponible.
+          </p>
+        )}
 
         <button className={styles.submit} disabled={!configured || pending} type="submit">
           {pending ? "Connexion en cours..." : mode === "signin" ? "Se connecter" : "Créer mon compte"}

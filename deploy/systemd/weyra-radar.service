@@ -1,5 +1,5 @@
 [Unit]
-Description=Weyra OPERA radar maintenance worker
+Description=Weyra Meteo-France and OPERA radar maintenance worker
 After=network-online.target local-fs.target
 Wants=network-online.target
 ConditionPathExists=/srv/apps/weyra/current/dist/radar-worker.mjs

@@ -148,6 +148,7 @@ tar --no-same-owner -xzf "${incoming_dir}/${archive_name}" -C "${release_dir}"
 [[ -f "${release_dir}/server.js" ]] || fail "release has no standalone server"
 [[ -f "${release_dir}/dist/radar-worker.mjs" ]] || fail "release has no radar worker"
 [[ -f "${release_dir}/radar-worker/requirements.txt" ]] || fail "release has no Python requirements"
+[[ -x "${release_dir}/radar-worker/bin/decode_meteofrance_bufr" ]] || fail "release has no Météo-France BUFR decoder"
 
 extracted_commit="$(json_field "${release_dir}/release.json" commit)"
 [[ "${extracted_commit}" == "${remote_commit}" ]] || fail "release manifest and archive do not match"

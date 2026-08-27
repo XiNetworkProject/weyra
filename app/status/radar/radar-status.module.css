@@ -1,0 +1,264 @@
+.shell {
+  position: fixed;
+  inset: 0;
+  overflow: auto;
+  color: #e8f2fa;
+  background: #06111d;
+  padding: clamp(24px, 5vw, 72px);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background:
+    linear-gradient(rgba(49, 113, 146, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(49, 113, 146, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 75%);
+}
+
+.header,
+.overview,
+.metrics,
+.details {
+  width: min(1080px, 100%);
+  margin-inline: auto;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 44px;
+}
+
+.brand {
+  display: inline-block;
+  margin-bottom: 28px;
+  color: #f5fbff;
+  font-size: 28px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #6e91a8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(32px, 6vw, 62px);
+  font-weight: 620;
+  line-height: 1;
+}
+
+.refresh {
+  min-height: 42px;
+  border: 1px solid #25465b;
+  border-radius: 6px;
+  color: #dcecf6;
+  background: #0b1d2a;
+  padding: 0 18px;
+  cursor: pointer;
+}
+
+.refresh:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.overview {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-block: 1px solid #173043;
+  padding: 26px 0;
+}
+
+.statusMark {
+  width: 12px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  box-shadow: 0 0 24px currentColor;
+}
+
+.healthy {
+  color: #43d39e;
+  background: #43d39e;
+}
+.degraded {
+  color: #f2b84b;
+  background: #f2b84b;
+}
+.critical {
+  color: #ff6a71;
+  background: #ff6a71;
+}
+
+.statusCopy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.statusCopy strong {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(18px, 3vw, 28px);
+}
+
+.statusCopy > span:last-child,
+.statusLabel {
+  color: #7894a7;
+  font-size: 12px;
+}
+
+.statusLabel {
+  text-transform: uppercase;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid #173043;
+}
+
+.metrics article {
+  display: grid;
+  min-width: 0;
+  min-height: 148px;
+  align-content: center;
+  gap: 9px;
+  border-right: 1px solid #173043;
+  padding: 22px;
+}
+
+.metrics article:last-child {
+  border-right: 0;
+}
+.metrics span,
+.metrics small {
+  color: #7894a7;
+}
+.metrics span {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.metrics strong {
+  font-size: clamp(21px, 3vw, 31px);
+  font-weight: 560;
+}
+.metrics small {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 38px;
+  background: #173043;
+}
+
+.details > div {
+  min-height: 260px;
+  background: #081725;
+  padding: 28px;
+}
+
+.details h2 {
+  margin: 0 0 24px;
+  color: #a9bfce;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.details dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px 20px;
+  margin: 0;
+}
+
+.details dt {
+  color: #718b9c;
+}
+.details dd {
+  margin: 0;
+  color: #e2edf4;
+  text-align: right;
+}
+.details ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+  color: #ffb2a8;
+}
+.clear {
+  color: #60d6ae;
+}
+.loading,
+.requestError {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 40px 0;
+  color: #88a5b8;
+}
+.requestError {
+  color: #ff9a9f;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    padding: 22px 18px 48px;
+  }
+  .header {
+    align-items: flex-start;
+    margin-bottom: 28px;
+  }
+  .brand {
+    margin-bottom: 42px;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metrics article:nth-child(2) {
+    border-right: 0;
+  }
+  .metrics article:nth-child(-n + 2) {
+    border-bottom: 1px solid #173043;
+  }
+  .details {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 440px) {
+  .header {
+    display: grid;
+  }
+  .refresh {
+    width: 100%;
+  }
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+  .metrics article {
+    min-height: 118px;
+    border-right: 0;
+    border-bottom: 1px solid #173043;
+  }
+  .metrics article:last-child {
+    border-bottom: 0;
+  }
+}

@@ -8,18 +8,19 @@ Atlas est la vraie application web de Weyra : **Next.js + TypeScript + MapLibre 
 - Style Atlas bleu nuit : eau, frontières, routes et labels sont retouchés directement dans le style vectoriel.
 - Météo actuelle + recherche de ville avec Open-Meteo.
 - Radar animé avec double-buffer / fondu entre trames.
-- Correctif RainViewer : le source raster est strictement plafonné à z=7 ; MapLibre surzoome la dernière tuile valide au lieu de demander des tuiles interdites.
+- Mosaïque Météo-France officielle DBZH à 1 km / 5 minutes, décodée côté serveur depuis le Package Radar BUFR.
+- Composite EUMETNET OPERA DBZH européen utilisé comme couverture complémentaire et repli amont.
 - Vérification de la timeline radar toutes les minutes.
 - Clusters MapLibre aux zooms éloignés.
 - Petits points événementiels au zoom régional.
 - Pastilles **photo** seulement pour les images réelles publiées par les utilisateurs, à un zoom local.
-- Publication locale immédiate ou synchronisation via Supabase.
+- Publication locale de démonstration en attendant la plateforme PostgreSQL auto-hébergée Weyra.
 
 ## Point honnête sur le radar
 
-L'application peut vérifier une nouvelle timeline toutes les minutes, mais une nouvelle mesure météo dépend toujours de la source. En mode par défaut, Atlas utilise le fallback public RainViewer : il est utile pour le prototype, mais ne garantit pas le produit France à 5 minutes attendu pour une ouverture publique.
+Météo-France est maintenant la source primaire officielle sur la France métropolitaine. Le worker télécharge le Package Radar, décode la mosaïque `IMFR27` BUFR, conserve la réflectivité DBZH brute et produit les tuiles Web Mercator utilisées par Atlas. Le masque de probabilité de pluie fourni dans le produit est appliqué uniquement à l'affichage afin d'écarter les échos non météorologiques faibles. EUMETNET OPERA reste disponible pour l'Europe et comme repli si Météo-France est temporairement indisponible.
 
-Pour la cible Weyra France : **oui, Météo-France doit devenir la source primaire**. Atlas appelle maintenant `/api/radar/timeline`, un gateway Next.js serveur. Configure `WEYRA_RADAR_TIMELINE_URL` vers un adapter Weyra privé qui récupère la donnée Météo-France autorisée, met les trames 5 minutes en cache/CDN et renvoie une timeline normalisée. Les identifiants Météo-France ou d'un fournisseur ne doivent jamais apparaître dans le front-end.
+La production doit configurer `METEOFRANCE_APPLICATION_ID` côté serveur pour renouveler automatiquement le jeton OAuth horaire. Un `METEOFRANCE_ACCESS_TOKEN` manuel n'est qu'un secours local temporaire. Aucun identifiant fournisseur, jeton, paquet BUFR ou URL amont n'est envoyé au navigateur.
 
 ## Installation
 
@@ -87,21 +88,24 @@ Ne commit jamais `.env.local` et ne copie jamais la cle MeteoGate dans le code, 
 Copie `.env.example` en `.env.local`.
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-WEYRA_RADAR_TIMELINE_URL=https://ton-worker.example/api/radar/timeline
+METEOFRANCE_APPLICATION_ID=
+METEOGATE_API_KEY=
+WEYRA_RADAR_CACHE_DIR=
 ```
 
-- Sans Supabase : les observations sont uniquement stockées dans le navigateur local.
-- Avec Supabase : observations et photos deviennent partagées en temps réel.
-- Sans `WEYRA_RADAR_TIMELINE_URL` : le fallback RainViewer 10 minutes est utilisé.
+- `METEOFRANCE_APPLICATION_ID` reste cote serveur et permet de renouveler automatiquement le
+  jeton OAuth du Package Radar officiel.
+- Météo-France est prioritaire pour la mosaique DBZH France metropolitaine a 1 km / 5 minutes.
+- MeteoGate fournit OPERA pour la couverture europeenne et le repli amont.
+- Les observations restent en mode local tant que la plateforme PostgreSQL auto-hebergee de
+  l'ADR-0001 n'est pas implementee.
 
 ## Avant une ouverture publique
 
-- Auth Supabase obligatoire et `user_id` sur chaque observation.
+- Comptes, sessions revocables et autorisation par proprietaire dans PostgreSQL.
 - Modération images/texte, anti-spam, limite d’envoi, signalement.
 - Géolocalisation arrondie par défaut et politique de rétention.
-- Fournisseur radar à usage commercial / contrat de données adapté.
+- Respect des licences et attributions Météo-France / EUMETNET pour chaque produit.
 - Backend cache/CDN pour ne jamais exposer de clé fournisseur au navigateur.
 
 ## Fichiers importants
@@ -112,4 +116,4 @@ WEYRA_RADAR_TIMELINE_URL=https://ton-worker.example/api/radar/timeline
 - `components/atlas/ObservationDetail.tsx` — popup social.
 - `app/globals.css` — système visuel Atlas.
 - `ATLAS-S3.md` — règles de design et critères de validation.
-- `supabase/schema.sql` — bêta communautaire.
+- `docs/architecture/ADR-0001-self-hosted-data-platform.md` — cible donnees et authentification.

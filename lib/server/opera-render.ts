@@ -12,7 +12,10 @@ import {
   type MeteoGateDataLink,
   type RecentOperaComposite,
 } from "@/lib/server/meteogate";
+import { logRadarEvent } from "@/lib/server/radar-observability";
+import { getCachedMeteoFranceFrame } from "@/lib/server/meteofrance-radar-ingest";
 import { RADAR_CACHE_ROOT, readBoundedPositiveIntEnv } from "@/lib/server/radar-config";
+import renderContract from "@/radar-worker/render-contract.json";
 
 const RENDER_TIMEOUT_MS = 120_000;
 const DOWNLOAD_TIMEOUT_MS = 90_000;
@@ -217,7 +220,7 @@ type PythonRunResult = {
   stderr: string;
 };
 
-export type OperaTileRenderVersion = typeof SUPPORTED_TILE_RENDER_VERSIONS[number];
+export type OperaTileRenderVersion = (typeof SUPPORTED_TILE_RENDER_VERSIONS)[number];
 
 export type RenderedOperaPublicMeta = {
   ok: true;
@@ -264,6 +267,11 @@ export type OperaFrameManifest = {
   errors: Array<{ timestamp: string; error: string }>;
   durationMs?: number;
   error?: string | null;
+};
+
+export type PrepareOperaFramesOptions = {
+  onDiscovered?: (summary: { availableCount: number; latestTimestamp: string | null }) => void | Promise<void>;
+  onLatestReady?: (timestamp: string) => void | Promise<void>;
 };
 
 const inFlight = new Map<string, Promise<OperaRenderedFrame>>();
@@ -471,11 +479,13 @@ async function readNewestCachedFrame(): Promise<OperaRenderedFrame | null> {
   try {
     const entries = await readdir(CACHE_DIR, { withFileTypes: true });
     const frameDirs = entries.filter((entry) => entry.isDirectory());
-    const candidates = await Promise.all(frameDirs.map(async (entry) => {
-      const metadataPath = path.join(CACHE_DIR, entry.name, "metadata.json");
-      const stats = await stat(metadataPath);
-      return { metadataPath, stats };
-    }));
+    const candidates = await Promise.all(
+      frameDirs.map(async (entry) => {
+        const metadataPath = path.join(CACHE_DIR, entry.name, "metadata.json");
+        const stats = await stat(metadataPath);
+        return { metadataPath, stats };
+      }),
+    );
 
     candidates.sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs);
 
@@ -508,7 +518,7 @@ async function readNewestCachedFrame(): Promise<OperaRenderedFrame | null> {
   return null;
 }
 
-const CURRENT_PALETTE = "weyra-v2";
+export const FRAME_RENDER_VERSION = renderContract.framePaletteVersion;
 
 function isCurrentMetadata(metadata: RenderMetadata) {
   return Boolean(
@@ -517,8 +527,8 @@ function isCurrentMetadata(metadata: RenderMetadata) {
     metadata.geographicBounds &&
     Array.isArray(metadata.mapLibreCoordinates) &&
     metadata.mapLibreCoordinates.length === 4 &&
-    // Frames rendered with an older color palette are treated as stale and re-rendered.
-    metadata.palette === CURRENT_PALETTE,
+    // Frames rendered with an older contract are treated as stale and re-rendered.
+    metadata.palette === FRAME_RENDER_VERSION,
   );
 }
 
@@ -564,17 +574,15 @@ function pythonCandidates() {
   }
 
   const candidates = [
-    path.join(homedir(), ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "python", "python.exe"),
     path.join(process.cwd(), ".venv", "Scripts", "python.exe"),
     path.join(process.cwd(), "venv", "Scripts", "python.exe"),
+    path.join(homedir(), ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "python", "python.exe"),
     "python3",
     "python",
     "py",
   ];
 
-  return [...new Set(candidates)].filter((candidate) => (
-    path.isAbsolute(candidate) ? existsSync(candidate) : true
-  ));
+  return [...new Set(candidates)].filter((candidate) => (path.isAbsolute(candidate) ? existsSync(candidate) : true));
 }
 
 function runPython(command: string, args: string[], timeoutMs = RENDER_TIMEOUT_MS) {
@@ -640,15 +648,7 @@ async function runRenderer(
   options: { diagnosticPath?: string; nativeOutputPath?: string; sourceGridPath?: string } = {},
 ) {
   const scriptPath = path.join(process.cwd(), "radar-worker", "render_opera.py");
-  const args = [
-    scriptPath,
-    "--input",
-    hdf5Path,
-    "--output",
-    outputPath,
-    "--metadata",
-    metadataPath,
-  ];
+  const args = [scriptPath, "--input", hdf5Path, "--output", outputPath, "--metadata", metadataPath];
 
   if (options.diagnosticPath) {
     args.push("--diagnostic", options.diagnosticPath);
@@ -668,7 +668,10 @@ async function runRenderer(
       const result = await runPython(candidate, args);
       logHdf5Summary(result.stdout);
       if (result.stderr.trim()) {
-        console.info(`Weyra OPERA renderer notes: ${result.stderr.trim().slice(0, 1200)}`);
+        logRadarEvent("info", "renderer_note", {
+          rendererMode: "frame",
+          note: result.stderr.trim().slice(0, 1200),
+        });
       }
       return;
     } catch (error) {
@@ -691,7 +694,10 @@ async function runTileRenderer(args: string[]) {
     try {
       const result = await runPython(candidate, args);
       if (result.stderr.trim()) {
-        console.info(`Weyra OPERA tile renderer notes: ${result.stderr.trim().slice(0, 1200)}`);
+        logRadarEvent("info", "renderer_note", {
+          rendererMode: "tile",
+          note: result.stderr.trim().slice(0, 1200),
+        });
       }
       return;
     } catch (error) {
@@ -707,16 +713,26 @@ async function runTileRenderer(args: string[]) {
   );
 }
 
-async function runTileBatchRenderer(args: string[], context: { style: OperaTileRenderVersion; timestamp: string; jobs: number }) {
+async function runTileBatchRenderer(
+  args: string[],
+  context: { style: OperaTileRenderVersion; timestamp: string; jobs: number },
+) {
   const candidates = pythonCandidates();
   const errors: string[] = [];
 
   for (const candidate of candidates) {
     try {
-      console.info(`[radar tile] python-spawn batch style=${context.style} timestamp=${context.timestamp} jobs=${context.jobs}`);
+      logRadarEvent("info", "tile_batch_started", {
+        style: context.style,
+        scanTimestamp: context.timestamp,
+        jobs: context.jobs,
+      });
       const result = await runPython(candidate, args, BATCH_RENDER_TIMEOUT_MS);
       if (result.stderr.trim()) {
-        console.info(`Weyra OPERA tile batch renderer notes: ${result.stderr.trim().slice(0, 1200)}`);
+        logRadarEvent("info", "renderer_note", {
+          rendererMode: "tile_batch",
+          note: result.stderr.trim().slice(0, 1200),
+        });
       }
       return result;
     } catch (error) {
@@ -733,7 +749,10 @@ async function runTileBatchRenderer(args: string[], context: { style: OperaTileR
 }
 
 function logHdf5Summary(stdout: string) {
-  const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   for (const line of lines) {
     try {
@@ -750,9 +769,12 @@ function logHdf5Summary(stdout: string) {
         .slice(0, 24)
         .map((entry) => `${entry.kind}:${entry.path}${entry.shape ? ` ${JSON.stringify(entry.shape)}` : ""}`);
 
-      console.info(
-        `Weyra OPERA HDF5 structure selected=${parsed.selectedDataPath ?? "unknown"} entries=${parsed.entryCount ?? 0} truncated=${Boolean(parsed.truncated)} sample=${compactEntries.join(" | ")}`,
-      );
+      logRadarEvent("info", "hdf5_structure_selected", {
+        selectedDataPath: parsed.selectedDataPath ?? "unknown",
+        entryCount: parsed.entryCount ?? 0,
+        truncated: Boolean(parsed.truncated),
+        entries: compactEntries,
+      });
       return;
     } catch {
       // Ignore non-JSON renderer output.
@@ -924,7 +946,9 @@ async function pruneFrameCache() {
       if (!entry.isDirectory()) continue;
 
       try {
-        const metadata = JSON.parse(await readFile(path.join(CACHE_DIR, entry.name, "metadata.json"), "utf-8")) as RenderMetadata;
+        const metadata = JSON.parse(
+          await readFile(path.join(CACHE_DIR, entry.name, "metadata.json"), "utf-8"),
+        ) as RenderMetadata;
         if (!metadata.timestamp) continue;
         records.push({ timestamp: metadata.timestamp, time: new Date(metadata.timestamp).getTime() });
       } catch {
@@ -939,8 +963,12 @@ async function pruneFrameCache() {
 
     for (const record of staleRecords) {
       await rm(frameCacheDir(record.timestamp), { recursive: true, force: true }).catch(() => undefined);
-      await rm(path.join(TILE_DIR, cacheKey(record.timestamp)), { recursive: true, force: true }).catch(() => undefined);
-      await rm(path.join(TILE_META_DIR, cacheKey(record.timestamp)), { recursive: true, force: true }).catch(() => undefined);
+      await rm(path.join(TILE_DIR, cacheKey(record.timestamp)), { recursive: true, force: true }).catch(
+        () => undefined,
+      );
+      await rm(path.join(TILE_META_DIR, cacheKey(record.timestamp)), { recursive: true, force: true }).catch(
+        () => undefined,
+      );
     }
   } catch {
     // Cache cleanup should never block a valid render.
@@ -1028,15 +1056,18 @@ export async function renderLatestOperaFrame(): Promise<OperaRenderedFrame> {
   const cached = await readCachedFrame(latest.latestTimestamp);
   if (cached) return cached;
 
-  return renderOperaFrame({
-    timestamp: latest.latestTimestamp,
-    provider: "EUMETNET OPERA",
-    product: "DBZH",
-    method: "comp",
-    format: "ODIM HDF5",
-    internalDataLink: link,
-    sourceStatus: latest.sourceStatus,
-  }, { retryFailed: true });
+  return renderOperaFrame(
+    {
+      timestamp: latest.latestTimestamp,
+      provider: "EUMETNET OPERA",
+      product: "DBZH",
+      method: "comp",
+      format: "ODIM HDF5",
+      internalDataLink: link,
+      sourceStatus: latest.sourceStatus,
+    },
+    { retryFailed: true },
+  );
 }
 
 async function qaArtifactsExist(timestamp: string) {
@@ -1061,7 +1092,7 @@ async function buildQaReport(frame: RecentOperaComposite): Promise<OperaQaReport
   const diagnosticPath = qaDiagnosticPathForTimestamp(timestamp);
   const metadataPath = qaMetadataPathForTimestamp(timestamp);
 
-  if (!await qaArtifactsExist(timestamp)) {
+  if (!(await qaArtifactsExist(timestamp))) {
     let hdf5Path: string | null = null;
 
     try {
@@ -1135,9 +1166,10 @@ export async function getOperaQaImagePath(kind: "native" | "current", timestamp:
     throw new Error("Invalid OPERA QA timestamp.");
   }
 
-  const imagePath = kind === "native"
-    ? qaNativeImagePathForTimestamp(normalizedTimestamp)
-    : qaCurrentOverlayPathForTimestamp(normalizedTimestamp);
+  const imagePath =
+    kind === "native"
+      ? qaNativeImagePathForTimestamp(normalizedTimestamp)
+      : qaCurrentOverlayPathForTimestamp(normalizedTimestamp);
 
   try {
     await stat(imagePath);
@@ -1176,21 +1208,21 @@ function validateTileInput(timestamp: string, z: number, x: number, y: number) {
 
 export function normalizeOperaTileRenderVersion(value: string | null | undefined): OperaTileRenderVersion {
   return SUPPORTED_TILE_RENDER_VERSIONS.includes(value as OperaTileRenderVersion)
-    ? value as OperaTileRenderVersion
+    ? (value as OperaTileRenderVersion)
     : TILE_RENDER_VERSION;
 }
 
 function tileBounds4326(z: number, x: number, y: number) {
   const tileCount = 2 ** z;
-  const west = x / tileCount * 360 - 180;
-  const east = (x + 1) / tileCount * 360 - 180;
-  const northRadians = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / tileCount)));
-  const southRadians = Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + 1) / tileCount)));
+  const west = (x / tileCount) * 360 - 180;
+  const east = ((x + 1) / tileCount) * 360 - 180;
+  const northRadians = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / tileCount)));
+  const southRadians = Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 1)) / tileCount)));
   return {
     west,
-    south: southRadians * 180 / Math.PI,
+    south: (southRadians * 180) / Math.PI,
     east,
-    north: northRadians * 180 / Math.PI,
+    north: (northRadians * 180) / Math.PI,
   };
 }
 
@@ -1213,8 +1245,8 @@ function lonToTileX(lon: number, z: number) {
 function latToTileY(lat: number, z: number) {
   const tileCount = 2 ** z;
   const clampedLat = clampNumber(lat, -85.05112878, 85.05112878);
-  const radians = clampedLat * Math.PI / 180;
-  const y = (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2 * tileCount;
+  const radians = (clampedLat * Math.PI) / 180;
+  const y = ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2) * tileCount;
   return clampNumber(Math.floor(y), 0, tileCount - 1);
 }
 
@@ -1252,7 +1284,7 @@ function tileJobsForViewport(viewport: OperaTilePrewarmViewport, paddingTiles: n
     const maxX = clampNumber(Math.max(westX, eastX) + padding, 0, tileCount - 1);
     const minY = clampNumber(Math.min(northY, southY) - padding, 0, tileCount - 1);
     const maxY = clampNumber(Math.max(northY, southY) + padding, 0, tileCount - 1);
-    const centerX = ((normalized.west + normalized.east) / 2 + 180) / 360 * tileCount;
+    const centerX = (((normalized.west + normalized.east) / 2 + 180) / 360) * tileCount;
     const centerY = latToTileY((normalized.south + normalized.north) / 2, z);
 
     for (let x = minX; x <= maxX; x += 1) {
@@ -1432,6 +1464,25 @@ async function pruneTileCache() {
   }
 }
 
+async function getPreferredRadarTileSource(timestamp: string) {
+  const meteoFranceFrame = await getCachedMeteoFranceFrame(timestamp);
+  if (meteoFranceFrame) {
+    return {
+      sourceGridPath: meteoFranceFrame.sourceGridPath,
+      tileReady: meteoFranceFrame.metadata.tileReady,
+      bounds: meteoFranceFrame.coverage,
+    };
+  }
+
+  const operaFrame = await readCachedFrame(timestamp);
+  if (!operaFrame) return null;
+  return {
+    sourceGridPath: operaFrame.metadata.sourceGridPath ?? sourceGridPathForTimestamp(timestamp),
+    tileReady: operaFrame.metadata.tileReady !== false,
+    bounds: operaFrame.metadata.geographicBounds ?? operaFrame.metadata.bbox ?? null,
+  };
+}
+
 async function prewarmTimestampTiles(
   timestamp: string,
   version: OperaTileRenderVersion,
@@ -1443,7 +1494,11 @@ async function prewarmTimestampTiles(
   const missingJobs = jobs.filter((_job, index) => !cachedBefore[index]);
 
   if (missingJobs.length === 0) {
-    console.info(`[radar tile] cache-hit prewarm style=${version} timestamp=${timestamp} requested=${jobs.length}`);
+    logRadarEvent("info", "tile_prewarm_cache_hit", {
+      style: version,
+      scanTimestamp: timestamp,
+      requested: jobs.length,
+    });
     return {
       timestamp,
       requested: jobs.length,
@@ -1456,10 +1511,15 @@ async function prewarmTimestampTiles(
     };
   }
 
-  console.warn(`[radar tile] CACHE-MISS prewarm style=${version} timestamp=${timestamp} missing=${missingJobs.length} requested=${jobs.length}`);
+  logRadarEvent("warn", "tile_prewarm_cache_miss", {
+    style: version,
+    scanTimestamp: timestamp,
+    missing: missingJobs.length,
+    requested: jobs.length,
+  });
 
-  const frame = await readCachedFrame(timestamp);
-  if (!frame) {
+  const source = await getPreferredRadarTileSource(timestamp);
+  if (!source) {
     return {
       timestamp,
       requested: jobs.length,
@@ -1470,15 +1530,14 @@ async function prewarmTimestampTiles(
       tileUrls: jobs
         .filter((_job, index) => cachedBefore[index])
         .map((job) => tileUrl(timestamp, job.z, job.x, job.y, version)),
-      readyTiles: jobs
-        .filter((_job, index) => Boolean(cachedBefore[index]))
-        .map(({ z, x, y }) => ({ z, x, y })),
+      readyTiles: jobs.filter((_job, index) => Boolean(cachedBefore[index])).map(({ z, x, y }) => ({ z, x, y })),
     };
   }
 
-  const sourceGridPath = frame.metadata.sourceGridPath ?? sourceGridPathForTimestamp(timestamp);
-  const sourceGridExists = await stat(sourceGridPath).then(() => true).catch(() => false);
-  if (!sourceGridExists || frame.metadata.tileReady === false) {
+  const sourceGridExists = await stat(source.sourceGridPath)
+    .then(() => true)
+    .catch(() => false);
+  if (!sourceGridExists || !source.tileReady) {
     return {
       timestamp,
       requested: jobs.length,
@@ -1489,9 +1548,7 @@ async function prewarmTimestampTiles(
       tileUrls: jobs
         .filter((_job, index) => cachedBefore[index])
         .map((job) => tileUrl(timestamp, job.z, job.x, job.y, version)),
-      readyTiles: jobs
-        .filter((_job, index) => Boolean(cachedBefore[index]))
-        .map(({ z, x, y }) => ({ z, x, y })),
+      readyTiles: jobs.filter((_job, index) => Boolean(cachedBefore[index])).map(({ z, x, y }) => ({ z, x, y })),
     };
   }
 
@@ -1504,22 +1561,32 @@ async function prewarmTimestampTiles(
 
   try {
     const scriptPath = path.join(process.cwd(), "radar-worker", "render_opera_tiles_batch.py");
-    await withTileRenderSlot(() => runTileBatchRenderer([
-      scriptPath,
-      "--input",
-      sourceGridPath,
-      "--jobs",
-      jobsPath,
-      "--style",
-      version,
-      "--timestamp",
-      timestamp,
-      "--output-root",
-      RADAR_CACHE_ROOT,
-    ], { style: version, timestamp, jobs: missingJobs.length }));
+    await withTileRenderSlot(() =>
+      runTileBatchRenderer(
+        [
+          scriptPath,
+          "--input",
+          source.sourceGridPath,
+          "--jobs",
+          jobsPath,
+          "--style",
+          version,
+          "--timestamp",
+          timestamp,
+          "--output-root",
+          RADAR_CACHE_ROOT,
+        ],
+        { style: version, timestamp, jobs: missingJobs.length },
+      ),
+    );
     await pruneTileCache();
   } catch (error) {
-    console.warn(`[radar tile] batch-prewarm failed style=${version} timestamp=${timestamp} jobs=${missingJobs.length}: ${sanitizeError(error)}`);
+    logRadarEvent("warn", "tile_batch_failed", {
+      style: version,
+      scanTimestamp: timestamp,
+      jobs: missingJobs.length,
+      error: sanitizeError(error),
+    });
   } finally {
     await rm(jobsPath, { force: true }).catch(() => undefined);
   }
@@ -1537,9 +1604,7 @@ async function prewarmTimestampTiles(
     tileUrls: jobs
       .filter((_job, index) => Boolean(cachedAfter[index]))
       .map((job) => tileUrl(timestamp, job.z, job.x, job.y, version)),
-    readyTiles: jobs
-      .filter((_job, index) => Boolean(cachedAfter[index]))
-      .map(({ z, x, y }) => ({ z, x, y })),
+    readyTiles: jobs.filter((_job, index) => Boolean(cachedAfter[index])).map(({ z, x, y }) => ({ z, x, y })),
   };
 }
 
@@ -1551,21 +1616,29 @@ export async function prewarmOperaTiles(input: {
 }): Promise<OperaTilePrewarmResult> {
   const version = normalizeOperaTileRenderVersion(input.style);
   const viewport = input.viewport;
-  if (!viewport || ![viewport.west, viewport.south, viewport.east, viewport.north, viewport.zoom].every(Number.isFinite)) {
+  if (
+    !viewport ||
+    ![viewport.west, viewport.south, viewport.east, viewport.north, viewport.zoom].every(Number.isFinite)
+  ) {
     throw new OperaTileError("Invalid OPERA tile prewarm viewport.", 400);
   }
 
-  const timestamps = [...new Set((input.timestamps ?? [])
-    .map((timestamp) => normalizeOperaTimestamp(timestamp))
-    .filter((timestamp): timestamp is string => Boolean(timestamp)))]
-    .slice(0, MAX_PREWARM_TIMESTAMPS);
+  const timestamps = [
+    ...new Set(
+      (input.timestamps ?? [])
+        .map((timestamp) => normalizeOperaTimestamp(timestamp))
+        .filter((timestamp): timestamp is string => Boolean(timestamp)),
+    ),
+  ].slice(0, MAX_PREWARM_TIMESTAMPS);
 
   if (!timestamps.length) {
     throw new OperaTileError("No valid OPERA timestamps were provided for tile prewarm.", 400);
   }
 
   const jobs = tileJobsForViewport(viewport, input.paddingTiles ?? 1);
-  const timestampsResult = await Promise.all(timestamps.map((timestamp) => prewarmTimestampTiles(timestamp, version, jobs)));
+  const timestampsResult = await Promise.all(
+    timestamps.map((timestamp) => prewarmTimestampTiles(timestamp, version, jobs)),
+  );
 
   return {
     ok: timestampsResult.some((item) => item.failed < item.requested),
@@ -1591,22 +1664,25 @@ export async function getOrCreateOperaTile(input: {
   if (existing) return existing;
 
   const pending = (async () => {
-    const frame = await readCachedFrame(timestamp);
-    if (!frame) {
-      throw new OperaTileError("OPERA radar frame is not ready in the local Weyra cache.", 404);
+    const source = await getPreferredRadarTileSource(timestamp);
+    if (!source) {
+      throw new OperaTileError("Radar frame is not ready in the local Weyra cache.", 404);
     }
 
-    const sourceGridPath = frame.metadata.sourceGridPath ?? sourceGridPathForTimestamp(timestamp);
-    const sourceGridExists = await stat(sourceGridPath).then(() => true).catch(() => false);
-    if (!sourceGridExists || frame.metadata.tileReady === false) {
-      throw new OperaTileError("OPERA frame is not tile-ready. Render it again after installing rasterio and mercantile.", 409);
+    const sourceGridExists = await stat(source.sourceGridPath)
+      .then(() => true)
+      .catch(() => false);
+    if (!sourceGridExists || !source.tileReady) {
+      throw new OperaTileError(
+        "Radar frame is not tile-ready. Render it again after installing rasterio and mercantile.",
+        409,
+      );
     }
 
-    const frameBounds = frame.metadata.geographicBounds ?? frame.metadata.bbox;
     const requestedBounds = tileBounds4326(input.z, input.x, input.y);
-    const outside = frameBounds ? !boundsIntersect(requestedBounds, frameBounds) : false;
+    const outside = source.bounds ? !boundsIntersect(requestedBounds, source.bounds) : false;
 
-    return renderOperaTile(version, timestamp, input.z, input.x, input.y, sourceGridPath, outside);
+    return renderOperaTile(version, timestamp, input.z, input.x, input.y, source.sourceGridPath, outside);
   })().finally(() => {
     tileInFlight.delete(lockKey);
   });
@@ -1632,6 +1708,17 @@ export function operaSourceGridPath(timestamp: string) {
 export function operaCachedTileImagePath(timestamp: string, z: number, x: number, y: number, style?: string | null) {
   const version = normalizeOperaTileRenderVersion(style);
   return tileImagePath(version, timestamp, z, x, y);
+}
+
+export async function invalidateOperaTileCache(timestamp: string, style?: string | null) {
+  const normalized = normalizeOperaTimestamp(timestamp);
+  if (!normalized) return;
+  const version = normalizeOperaTileRenderVersion(style);
+  const key = cacheKey(normalized);
+  await Promise.all([
+    rm(path.join(TILE_DIR, version, key), { recursive: true, force: true }).catch(() => undefined),
+    rm(path.join(TILE_META_DIR, version, key), { recursive: true, force: true }).catch(() => undefined),
+  ]);
 }
 
 export function operaOverviewTileJobsForBounds(
@@ -1674,19 +1761,24 @@ export async function runOperaOverviewTileBatch(input: {
 
   try {
     const scriptPath = path.join(process.cwd(), "radar-worker", "render_opera_tiles_batch.py");
-    await withTileRenderSlot(() => runTileBatchRenderer([
-      scriptPath,
-      "--input",
-      input.sourceGridPath,
-      "--jobs",
-      jobsPath,
-      "--style",
-      style,
-      "--timestamp",
-      input.timestamp,
-      "--output-root",
-      input.outputRoot,
-    ], { style, timestamp: input.timestamp, jobs: input.jobs.length }));
+    await withTileRenderSlot(() =>
+      runTileBatchRenderer(
+        [
+          scriptPath,
+          "--input",
+          input.sourceGridPath,
+          "--jobs",
+          jobsPath,
+          "--style",
+          style,
+          "--timestamp",
+          input.timestamp,
+          "--output-root",
+          input.outputRoot,
+        ],
+        { style, timestamp: input.timestamp, jobs: input.jobs.length },
+      ),
+    );
   } finally {
     await rm(jobsPath, { force: true }).catch(() => undefined);
   }
@@ -1751,7 +1843,10 @@ export async function getOperaFramesManifest(count: number): Promise<OperaFrameM
   return buildManifest(recent.frames, count);
 }
 
-export async function prepareOperaFrames(count: number): Promise<OperaFrameManifest> {
+export async function prepareOperaFrames(
+  count: number,
+  options: PrepareOperaFramesOptions = {},
+): Promise<OperaFrameManifest> {
   const startedAt = Date.now();
   const recent = await getRecentOperaComposites({ count });
 
@@ -1759,13 +1854,30 @@ export async function prepareOperaFrames(count: number): Promise<OperaFrameManif
     return buildManifest([], count, [], Date.now() - startedAt, recent.error ?? "No OPERA frames were discovered.");
   }
 
+  const latestTimestamp = recent.frames.at(-1)?.timestamp ?? null;
+  await options.onDiscovered?.({ availableCount: recent.availableCount, latestTimestamp });
+
   const initialManifest = await buildManifest(recent.frames, count);
+  let latestReadyNotified = false;
+  const notifyLatestReady = async (timestamp: string) => {
+    if (!options.onLatestReady || latestReadyNotified || timestamp !== latestTimestamp) return;
+    latestReadyNotified = true;
+    await options.onLatestReady(timestamp);
+  };
+
+  const cachedLatest = initialManifest.frames.find(
+    (frame) => frame.timestamp === latestTimestamp && frame.status === "ready",
+  );
+  if (cachedLatest) await notifyLatestReady(cachedLatest.timestamp);
+
   // Failed frames are retried on each prepare call: a transient download error or a renderer
   // hiccup on one page load must not poison a timestamp for the rest of its history window.
-  const framesToRender = recent.frames.filter((frame) => {
-    const item = initialManifest.frames.find((candidate) => candidate.timestamp === frame.timestamp);
-    return item?.status === "missing" || item?.status === "failed";
-  });
+  const framesToRender = recent.frames
+    .filter((frame) => {
+      const item = initialManifest.frames.find((candidate) => candidate.timestamp === frame.timestamp);
+      return item?.status === "missing" || item?.status === "failed";
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   const errors: Array<{ timestamp: string; error: string }> = [];
   const deadline = startedAt + BATCH_RENDER_TIMEOUT_MS;
   let cursor = 0;
@@ -1786,7 +1898,8 @@ export async function prepareOperaFrames(count: number): Promise<OperaFrameManif
       }
 
       try {
-        await renderOperaFrame(frame, { retryFailed: true });
+        const rendered = await renderOperaFrame(frame, { retryFailed: true });
+        await notifyLatestReady(rendered.timestamp);
       } catch (error) {
         errors.push({ timestamp: frame.timestamp, error: sanitizeError(error) });
       }

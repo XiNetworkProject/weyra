@@ -5,6 +5,7 @@ import {
   PACK_DETAIL_ZOOM_MAX,
   PACK_DETAIL_ZOOM_MIN,
   PACK_STYLE,
+  getScanPackManifest,
   packDetailTilePath,
 } from "@/lib/server/opera-packs";
 
@@ -19,10 +20,13 @@ type RouteContext = {
 function notFound() {
   // Fast 404 with zero processing: MapLibre keeps the overview layer underneath, so a missing
   // detail tile is invisible. The tile appears on a later request once the prewarm produced it.
-  return NextResponse.json({ ok: false, error: "Detail tile is not generated yet." }, {
-    status: 404,
-    headers: { "Cache-Control": "no-store, max-age=0" },
-  });
+  return NextResponse.json(
+    { ok: false, error: "Detail tile is not generated yet." },
+    {
+      status: 404,
+      headers: { "Cache-Control": "no-store, max-age=0" },
+    },
+  );
 }
 
 // Serves ONLY pre-generated WebP detail tiles (z8..z11) produced by the background prewarm.
@@ -43,17 +47,19 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
-    // Primary storage: the scan pack itself (packs/v3/<ts>/detail/z/x/y.webp). The shared tile
+    const manifest = await getScanPackManifest(timestamp);
+    if (manifest?.status !== "ready") return notFound();
+    // Primary storage: the active scan pack itself (packs/<version>/<ts>/detail/z/x/y.webp). The shared tile
     // cache stays as a read-only fallback for tiles prewarmed before the pack was published.
-    const image = await readFile(packDetailTilePath(timestamp, z, x, y)).catch(() => (
-      readFile(operaCachedTileImagePath(timestamp, z, x, y, PACK_STYLE))
-    ));
+    const image = await readFile(packDetailTilePath(timestamp, z, x, y)).catch(() =>
+      readFile(operaCachedTileImagePath(timestamp, z, x, y, PACK_STYLE)),
+    );
     return new Response(new Uint8Array(image), {
       status: 200,
       headers: {
         "Content-Type": "image/webp",
         "Cache-Control": "public, max-age=31536000, immutable",
-        "X-Weyra-Radar-Provider": "EUMETNET-OPERA",
+        "X-Weyra-Radar-Provider": manifest.provider === "Météo-France" ? "METEO-FRANCE" : "EUMETNET-OPERA",
         "X-Weyra-Radar-Product": "DBZH",
         "X-Weyra-Radar-Projection": "EPSG-3857",
         "X-Weyra-Radar-Style": PACK_STYLE,

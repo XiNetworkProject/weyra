@@ -16,12 +16,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { ObservationCategory } from "@/lib/types";
 
-export type ProductBackendStatus =
-  | "local"
-  | "connecting"
-  | "anonymous"
-  | "authenticated"
-  | "error";
+export type ProductBackendStatus = "local" | "connecting" | "anonymous" | "authenticated" | "error";
 
 export type ProductBackendState = {
   configured: boolean;
@@ -49,14 +44,12 @@ export type SupabaseProductCatalog = {
 };
 
 function rows(value: unknown): AnyRow[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is AnyRow => Boolean(item && typeof item === "object"))
-    : [];
+  return Array.isArray(value) ? value.filter((item): item is AnyRow => Boolean(item && typeof item === "object")) : [];
 }
 
 function remoteCategory(value: unknown): ObservationCategory | null {
   const normalized = value === "grele" ? "grêle" : value;
-  return typeof normalized === "string" ? normalized as ObservationCategory : null;
+  return typeof normalized === "string" ? (normalized as ObservationCategory) : null;
 }
 
 function databaseCategory(value: ObservationCategory) {
@@ -76,17 +69,15 @@ function stringIds(value: unknown, key: string) {
 }
 
 function profileRole(value: unknown): ProductProfile["role"] {
-  return value === "reliable" || value === "creator" || value === "association"
-    ? value
-    : "member";
+  return value === "reliable" || value === "creator" || value === "association" ? value : "member";
 }
 
 function firstRelation(value: unknown): AnyRow | null {
   if (Array.isArray(value)) {
     const first = value[0];
-    return first && typeof first === "object" ? first as AnyRow : null;
+    return first && typeof first === "object" ? (first as AnyRow) : null;
   }
-  return value && typeof value === "object" ? value as AnyRow : null;
+  return value && typeof value === "object" ? (value as AnyRow) : null;
 }
 
 async function catalogMediaUrl(value: unknown) {
@@ -126,7 +117,8 @@ export async function loadSupabaseProductCatalog(): Promise<SupabaseProductCatal
   const [postsResult, communitiesResult, spacesResult] = await Promise.all([
     supabase
       .from("posts")
-      .select(`
+      .select(
+        `
         id,
         author_id,
         observation_id,
@@ -158,12 +150,14 @@ export async function loadSupabaseProductCatalog(): Promise<SupabaseProductCatal
             object_path
           )
         )
-      `)
+      `,
+      )
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
       .from("communities")
-      .select(`
+      .select(
+        `
         id,
         slug,
         name,
@@ -187,7 +181,8 @@ export async function loadSupabaseProductCatalog(): Promise<SupabaseProductCatal
           bucket_id,
           object_path
         )
-      `)
+      `,
+      )
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
@@ -200,96 +195,105 @@ export async function loadSupabaseProductCatalog(): Promise<SupabaseProductCatal
 
   const authorsById = new Map<string, ProductAuthor>();
   const posts = (
-    await Promise.all(rows(postsResult.data).map(async (row): Promise<ProductPost | null> => {
-      const author = catalogAuthor(firstRelation(row.profiles));
-      const lat = Number(row.latitude);
-      const lon = Number(row.longitude);
-      if (!author || typeof row.id !== "string" || !Number.isFinite(lat) || !Number.isFinite(lon)) {
-        return null;
-      }
-      authorsById.set(author.id, author);
+    await Promise.all(
+      rows(postsResult.data).map(async (row): Promise<ProductPost | null> => {
+        const author = catalogAuthor(firstRelation(row.profiles));
+        const lat = Number(row.latitude);
+        const lon = Number(row.longitude);
+        if (!author || typeof row.id !== "string" || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+          return null;
+        }
+        authorsById.set(author.id, author);
 
-      const mediaLink = firstRelation(row.post_media);
-      const media = mediaLink ? await catalogMediaUrl(mediaLink.media_assets) : null;
-      const phenomena = remoteCategories(row.phenomena);
-      const kind = ["observation", "photo", "analysis", "question", "recap"].includes(String(row.kind))
-        ? row.kind as ProductPost["kind"]
-        : "observation";
+        const mediaLink = firstRelation(row.post_media);
+        const media = mediaLink ? await catalogMediaUrl(mediaLink.media_assets) : null;
+        const phenomena = remoteCategories(row.phenomena);
+        const kind = ["observation", "photo", "analysis", "question", "recap"].includes(String(row.kind))
+          ? (row.kind as ProductPost["kind"])
+          : "observation";
 
-      return {
-        id: row.id,
-        authorId: author.id,
-        kind,
-        title: String(row.title ?? ""),
-        body: String(row.body ?? ""),
-        imageUrl: media ?? undefined,
-        place: String(row.place ?? ""),
-        lat,
-        lon,
-        phenomena: phenomena.length ? phenomena : ["nuage"],
-        publishedAt: String(row.published_at ?? row.created_at ?? new Date().toISOString()),
-        likes: Math.max(0, Number(row.like_count) || 0),
-        comments: Math.max(0, Number(row.comment_count) || 0),
-        shares: Math.max(0, Number(row.share_count) || 0),
-        observationId: typeof row.observation_id === "string" ? row.observation_id : undefined,
-        useful: Boolean(row.useful),
-      };
-    }))
+        return {
+          id: row.id,
+          authorId: author.id,
+          kind,
+          title: String(row.title ?? ""),
+          body: String(row.body ?? ""),
+          imageUrl: media ?? undefined,
+          place: String(row.place ?? ""),
+          lat,
+          lon,
+          phenomena: phenomena.length ? phenomena : ["nuage"],
+          publishedAt: String(row.published_at ?? row.created_at ?? new Date().toISOString()),
+          likes: Math.max(0, Number(row.like_count) || 0),
+          comments: Math.max(0, Number(row.comment_count) || 0),
+          shares: Math.max(0, Number(row.share_count) || 0),
+          observationId: typeof row.observation_id === "string" ? row.observation_id : undefined,
+          useful: Boolean(row.useful),
+        };
+      }),
+    )
   ).filter((post): post is ProductPost => post !== null);
 
   const communities = (
-    await Promise.all(rows(communitiesResult.data).map(async (row): Promise<Community | null> => {
-      const lat = Number(row.center_latitude);
-      const lon = Number(row.center_longitude);
-      if (typeof row.id !== "string" || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-      const bannerUrl = await catalogMediaUrl(row.media_assets);
-      const access = ["public", "request", "private"].includes(String(row.access))
-        ? row.access as Community["access"]
-        : "public";
-      const template = ["local", "weather", "association", "media", "field", "photography", "event"].includes(String(row.template))
-        ? row.template as Community["template"]
-        : "local";
+    await Promise.all(
+      rows(communitiesResult.data).map(async (row): Promise<Community | null> => {
+        const lat = Number(row.center_latitude);
+        const lon = Number(row.center_longitude);
+        if (typeof row.id !== "string" || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        const bannerUrl = await catalogMediaUrl(row.media_assets);
+        const access = ["public", "request", "private"].includes(String(row.access))
+          ? (row.access as Community["access"])
+          : "public";
+        const template = ["local", "weather", "association", "media", "field", "photography", "event"].includes(
+          String(row.template),
+        )
+          ? (row.template as Community["template"])
+          : "local";
 
-      return {
-        id: row.id,
-        slug: String(row.slug ?? row.id),
-        name: String(row.name ?? "Communaute Weyra"),
-        initials: String(row.initials ?? "WY"),
-        description: String(row.description ?? ""),
-        about: String(row.about ?? ""),
-        territory: String(row.territory ?? ""),
-        themes: Array.isArray(row.themes) ? row.themes.map(String) : [],
-        access,
-        template,
-        memberCount: Math.max(0, Number(row.member_count) || 0),
-        activeCount: Math.max(0, Number(row.active_count) || 0),
-        observationCount: Math.max(0, Number(row.observation_count) || 0),
-        verified: Boolean(row.verified),
-        bannerUrl: bannerUrl ?? "/media/observations/arcus-champs.webp",
-        accent: String(row.accent ?? "#55c2ff"),
-        center: { lat, lon },
-        rules: Array.isArray(row.rules) ? row.rules.map(String) : [],
-        featuredSpaceIds: Array.isArray(row.featured_space_ids) ? row.featured_space_ids.map(String) : [],
-      };
-    }))
+        return {
+          id: row.id,
+          slug: String(row.slug ?? row.id),
+          name: String(row.name ?? "Communaute Weyra"),
+          initials: String(row.initials ?? "WY"),
+          description: String(row.description ?? ""),
+          about: String(row.about ?? ""),
+          territory: String(row.territory ?? ""),
+          themes: Array.isArray(row.themes) ? row.themes.map(String) : [],
+          access,
+          template,
+          memberCount: Math.max(0, Number(row.member_count) || 0),
+          activeCount: Math.max(0, Number(row.active_count) || 0),
+          observationCount: Math.max(0, Number(row.observation_count) || 0),
+          verified: Boolean(row.verified),
+          bannerUrl: bannerUrl ?? "/media/observations/arcus-champs.webp",
+          accent: String(row.accent ?? "#55c2ff"),
+          center: { lat, lon },
+          rules: Array.isArray(row.rules) ? row.rules.map(String) : [],
+          featuredSpaceIds: Array.isArray(row.featured_space_ids) ? row.featured_space_ids.map(String) : [],
+        };
+      }),
+    )
   ).filter((community): community is Community => community !== null);
 
   const spaces = rows(spacesResult.data).flatMap((row): CommunitySpace[] => {
-    if (typeof row.id !== "string" || typeof row.community_id !== "string" || typeof row.section_id !== "string") return [];
+    if (typeof row.id !== "string" || typeof row.community_id !== "string" || typeof row.section_id !== "string")
+      return [];
     const type = String(row.type) as CommunitySpace["type"];
     const visibility = String(row.visibility) as CommunitySpace["visibility"];
-    return [{
-      id: row.id,
-      communityId: row.community_id,
-      sectionId: row.section_id,
-      name: String(row.name ?? ""),
-      description: String(row.description ?? ""),
-      type,
-      visibility,
-      unreadCount: 0,
-      live: Boolean(row.live),
-      archived: Boolean(row.archived_at),
-    }];
+    return [
+      {
+        id: row.id,
+        communityId: row.community_id,
+        sectionId: row.section_id,
+        name: String(row.name ?? ""),
+        description: String(row.description ?? ""),
+        type,
+        visibility,
+        unreadCount: 0,
+        live: Boolean(row.live),
+        archived: Boolean(row.archived_at),
+      },
+    ];
   });
 
   return {
@@ -305,13 +309,15 @@ function timeValue(value: unknown, fallback: string) {
 }
 
 function initials(displayName: string) {
-  return displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase() || "WY";
+  return (
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase() || "WY"
+  );
 }
 
 export async function hydrateSupabaseProduct(base: WeyraProductState): Promise<{
@@ -352,7 +358,12 @@ export async function hydrateSupabaseProduct(base: WeyraProductState): Promise<{
   ] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase.from("profile_preferences").select("*").eq("user_id", user.id).maybeSingle(),
-    supabase.from("notebook_entries").select("id,title,note,place,created_at,observation_id").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
+    supabase
+      .from("notebook_entries")
+      .select("id,title,note,place,created_at,observation_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
     supabase.from("community_members").select("community_id").eq("user_id", user.id).eq("status", "joined"),
     supabase.from("favorite_communities").select("community_id").eq("user_id", user.id),
     supabase.from("followed_spaces").select("space_id").eq("user_id", user.id),
@@ -364,7 +375,10 @@ export async function hydrateSupabaseProduct(base: WeyraProductState): Promise<{
     supabase.from("community_notification_preferences").select("community_id,mode").eq("user_id", user.id),
     supabase.from("post_shares").select("post_id").eq("user_id", user.id),
     supabase.from("observations").select("id", { count: "exact", head: true }).eq("author_id", user.id),
-    supabase.from("observation_confirmations").select("observation_id", { count: "exact", head: true }).eq("user_id", user.id),
+    supabase
+      .from("observation_confirmations")
+      .select("observation_id", { count: "exact", head: true })
+      .eq("user_id", user.id),
   ]);
 
   const profile = profileResult.data as AnyRow | null;
@@ -389,10 +403,10 @@ export async function hydrateSupabaseProduct(base: WeyraProductState): Promise<{
   }));
   const notificationModes = Object.fromEntries(
     rows(notificationModesResult.data)
-      .filter((row) => (
-        typeof row.community_id === "string"
-        && ["all", "essential", "custom", "silent"].includes(String(row.mode))
-      ))
+      .filter(
+        (row) =>
+          typeof row.community_id === "string" && ["all", "essential", "custom", "silent"].includes(String(row.mode)),
+      )
       .map((row) => [String(row.community_id), String(row.mode)]),
   ) as Record<string, CommunityNotificationMode>;
 
@@ -416,58 +430,50 @@ export async function hydrateSupabaseProduct(base: WeyraProductState): Promise<{
       confirmedCount: confirmationCountResult.count ?? 0,
     },
     notebookEntries: remoteNotebook,
-    likedPostIds: [
-      ...new Set([...base.likedPostIds, ...stringIds(postLikesResult.data, "post_id")]),
-    ],
-    sharedPostIds: [
-      ...new Set([...base.sharedPostIds, ...stringIds(sharedPostsResult.data, "post_id")]),
-    ],
-    bookmarkedPostIds: [
-      ...new Set([...base.bookmarkedPostIds, ...stringIds(savedPostsResult.data, "post_id")]),
-    ],
+    likedPostIds: [...new Set([...base.likedPostIds, ...stringIds(postLikesResult.data, "post_id")])],
+    sharedPostIds: [...new Set([...base.sharedPostIds, ...stringIds(sharedPostsResult.data, "post_id")])],
+    bookmarkedPostIds: [...new Set([...base.bookmarkedPostIds, ...stringIds(savedPostsResult.data, "post_id")])],
     followedAuthorIds: [
       ...new Set([...base.followedAuthorIds, ...stringIds(followedAuthorsResult.data, "followed_id")]),
     ],
-    joinedRoomIds: [
-      ...new Set([...base.joinedRoomIds, ...stringIds(joinedRoomsResult.data, "room_id")]),
-    ],
+    joinedRoomIds: [...new Set([...base.joinedRoomIds, ...stringIds(joinedRoomsResult.data, "room_id")])],
     joinedCommunityIds: [
       ...new Set([...base.joinedCommunityIds, ...stringIds(membershipsResult.data, "community_id")]),
     ],
     favoriteCommunityIds: [
       ...new Set([...base.favoriteCommunityIds, ...stringIds(favoritesResult.data, "community_id")]),
     ],
-    followedSpaceIds: [
-      ...new Set([...base.followedSpaceIds, ...stringIds(followedSpacesResult.data, "space_id")]),
-    ],
-    completedLessonIds: [
-      ...new Set([...base.completedLessonIds, ...stringIds(progressResult.data, "lesson_id")]),
-    ],
+    followedSpaceIds: [...new Set([...base.followedSpaceIds, ...stringIds(followedSpacesResult.data, "space_id")])],
+    completedLessonIds: [...new Set([...base.completedLessonIds, ...stringIds(progressResult.data, "lesson_id")])],
     communityNotificationModes: {
       ...base.communityNotificationModes,
       ...notificationModes,
     },
-    alertPreferences: preferences ? {
-      ...base.alertPreferences,
-      enabled: Boolean(preferences.alert_enabled),
-      radiusKm: Number(preferences.alert_radius_km) || base.alertPreferences.radiusKm,
-      quietHours: Boolean(preferences.quiet_hours),
-      quietFrom: timeValue(preferences.quiet_from, base.alertPreferences.quietFrom),
-      quietTo: timeValue(preferences.quiet_to, base.alertPreferences.quietTo),
-      phenomena: alertPhenomena.length ? alertPhenomena : base.alertPreferences.phenomena,
-      communityActivity: Boolean(preferences.community_activity),
-      officialInformation: Boolean(preferences.official_information),
-      dailyRecap: Boolean(preferences.daily_recap),
-    } : base.alertPreferences,
-    settings: preferences ? {
-      ...base.settings,
-      compactMode: Boolean(preferences.compact_mode),
-      reduceMotion: Boolean(preferences.reduce_motion),
-      highContrast: Boolean(preferences.high_contrast),
-      temperatureUnit: preferences.temperature_unit === "fahrenheit" ? "fahrenheit" : "celsius",
-      windUnit: preferences.wind_unit === "ms" ? "ms" : "kmh",
-      locale: profile.locale === "en-GB" ? "en-GB" : "fr-FR",
-    } : base.settings,
+    alertPreferences: preferences
+      ? {
+          ...base.alertPreferences,
+          enabled: Boolean(preferences.alert_enabled),
+          radiusKm: Number(preferences.alert_radius_km) || base.alertPreferences.radiusKm,
+          quietHours: Boolean(preferences.quiet_hours),
+          quietFrom: timeValue(preferences.quiet_from, base.alertPreferences.quietFrom),
+          quietTo: timeValue(preferences.quiet_to, base.alertPreferences.quietTo),
+          phenomena: alertPhenomena.length ? alertPhenomena : base.alertPreferences.phenomena,
+          communityActivity: Boolean(preferences.community_activity),
+          officialInformation: Boolean(preferences.official_information),
+          dailyRecap: Boolean(preferences.daily_recap),
+        }
+      : base.alertPreferences,
+    settings: preferences
+      ? {
+          ...base.settings,
+          compactMode: Boolean(preferences.compact_mode),
+          reduceMotion: Boolean(preferences.reduce_motion),
+          highContrast: Boolean(preferences.high_contrast),
+          temperatureUnit: preferences.temperature_unit === "fahrenheit" ? "fahrenheit" : "celsius",
+          windUnit: preferences.wind_unit === "ms" ? "ms" : "kmh",
+          locale: profile.locale === "en-GB" ? "en-GB" : "fr-FR",
+        }
+      : base.settings,
   };
 
   return {
@@ -506,11 +512,7 @@ export async function syncSupabaseProfile(profile: ProductProfile, onboardingCom
     .eq("id", profile.id);
 }
 
-export async function syncSupabasePreferences(
-  userId: string,
-  alerts: AlertPreferences,
-  settings: ProductSettings,
-) {
+export async function syncSupabasePreferences(userId: string, alerts: AlertPreferences, settings: ProductSettings) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase || !UUID_PATTERN.test(userId)) return;
 
@@ -540,9 +542,7 @@ export async function insertSupabaseNotebookEntry(userId: string, entry: Noteboo
   await supabase.from("notebook_entries").insert({
     id: entry.id,
     user_id: userId,
-    observation_id: entry.observationId && UUID_PATTERN.test(entry.observationId)
-      ? entry.observationId
-      : null,
+    observation_id: entry.observationId && UUID_PATTERN.test(entry.observationId) ? entry.observationId : null,
     title: entry.title,
     note: entry.note || " ",
     place: entry.place,
@@ -556,11 +556,7 @@ export async function deleteSupabaseNotebookEntry(userId: string, entryId: strin
   await supabase.from("notebook_entries").delete().eq("id", entryId).eq("user_id", userId);
 }
 
-async function setSupabaseJunction(
-  table: string,
-  active: boolean,
-  values: Record<string, string>,
-) {
+async function setSupabaseJunction(table: string, active: boolean, values: Record<string, string>) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase || Object.values(values).some((value) => !UUID_PATTERN.test(value))) return;
 
@@ -614,11 +610,7 @@ export function syncSupabaseRoomMembership(userId: string, roomId: string, activ
   return setSupabaseJunction("room_members", active, { room_id: roomId, user_id: userId });
 }
 
-export async function syncSupabaseCommunityMembership(
-  userId: string,
-  communityId: string,
-  active: boolean,
-) {
+export async function syncSupabaseCommunityMembership(userId: string, communityId: string, active: boolean) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase || !UUID_PATTERN.test(userId) || !UUID_PATTERN.test(communityId)) return;
   if (active) {
@@ -628,18 +620,10 @@ export async function syncSupabaseCommunityMembership(
     });
     return;
   }
-  await supabase
-    .from("community_members")
-    .delete()
-    .eq("community_id", communityId)
-    .eq("user_id", userId);
+  await supabase.from("community_members").delete().eq("community_id", communityId).eq("user_id", userId);
 }
 
-export async function syncSupabaseCommunityNotification(
-  userId: string,
-  communityId: string,
-  mode: string,
-) {
+export async function syncSupabaseCommunityNotification(userId: string, communityId: string, mode: string) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase || !UUID_PATTERN.test(userId) || !UUID_PATTERN.test(communityId)) return;
   await supabase.from("community_notification_preferences").upsert({
@@ -665,12 +649,7 @@ export async function insertSupabaseComment(
   });
 }
 
-export async function insertSupabaseRoomMessage(
-  userId: string,
-  roomId: string,
-  messageId: string,
-  body: string,
-) {
+export async function insertSupabaseRoomMessage(userId: string, roomId: string, messageId: string, body: string) {
   const supabase = createSupabaseBrowserClient();
   if (![userId, roomId, messageId].every((value) => UUID_PATTERN.test(value)) || !supabase) return;
   await supabase.from("room_messages").insert({
@@ -731,13 +710,15 @@ export async function markSupabaseNotificationsRead(userId: string, ids: string[
 }
 
 export async function reportSupabaseObservation(userId: string, observationId: string) {
-  const supabase = createSupabaseBrowserClient();
-  if (!supabase || !UUID_PATTERN.test(userId) || !UUID_PATTERN.test(observationId)) return;
-  await supabase.from("content_reports").insert({
-    reporter_id: userId,
-    observation_id: observationId,
-    category: "quality",
-    details: "Signalement transmis depuis la fiche d'observation Weyra.",
+  if (!UUID_PATTERN.test(userId) || !UUID_PATTERN.test(observationId)) return;
+  await fetch(`/api/observations/${encodeURIComponent(observationId)}/report`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      category: "quality",
+      details: "Signalement transmis depuis la fiche d'observation Weyra.",
+    }),
   });
 }
 

@@ -120,7 +120,7 @@ const INITIAL_LOCATION: LocationSelection = {
 function productSpaceFromUrl(): WeyraSpace {
   if (typeof window === "undefined") return "atlas";
   const candidate = new URL(window.location.href).searchParams.get("space");
-  return candidate && WEYRA_SPACE_VALUES.includes(candidate as WeyraSpace) ? candidate as WeyraSpace : "atlas";
+  return candidate && WEYRA_SPACE_VALUES.includes(candidate as WeyraSpace) ? (candidate as WeyraSpace) : "atlas";
 }
 
 function writeProductSpaceToUrl(space: WeyraSpace, replace = false) {
@@ -169,10 +169,12 @@ function formatOperaTimelineTime(timestamp: string | null) {
 function coordinatesCoverAtlasArea(coordinates: MapLibreImageCoordinates) {
   const longitudes = coordinates.map(([lon]) => lon);
   const latitudes = coordinates.map(([, lat]) => lat);
-  return Math.min(...longitudes) <= 2 &&
+  return (
+    Math.min(...longitudes) <= 2 &&
     Math.max(...longitudes) >= 5 &&
     Math.min(...latitudes) <= 50 &&
-    Math.max(...latitudes) >= 52;
+    Math.max(...latitudes) >= 52
+  );
 }
 
 function packManifestUrl(timestamp: string) {
@@ -195,8 +197,8 @@ function lonToTileX(lon: number, z: number) {
 function latToTileY(lat: number, z: number) {
   const tileCount = 2 ** z;
   const clamped = clampNumber(lat, -85.05112878, 85.05112878);
-  const radians = clamped * Math.PI / 180;
-  const y = (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2 * tileCount;
+  const radians = (clamped * Math.PI) / 180;
+  const y = ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2) * tileCount;
   return clampNumber(Math.floor(y), 0, tileCount - 1);
 }
 
@@ -284,7 +286,10 @@ export default function AtlasApp() {
   const [confirmedObservationIds, setConfirmedObservationIds] = useState<Set<string>>(new Set());
   const [observationClock, setObservationClock] = useState(0);
   const [selectedObservation, setSelectedObservation] = useState<Observation | null>(null);
-  const [reportPosition, setReportPosition] = useState<Coordinates>({ lat: INITIAL_LOCATION.lat, lon: INITIAL_LOCATION.lon });
+  const [reportPosition, setReportPosition] = useState<Coordinates>({
+    lat: INITIAL_LOCATION.lat,
+    lon: INITIAL_LOCATION.lon,
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationSelection[]>([]);
@@ -327,13 +332,16 @@ export default function AtlasApp() {
   const localAutoplayStartedRef = useRef(false);
 
   const activeObservations = useMemo(
-    () => observations.filter((observation) => (
-      isObservationActive(observation, observationClock) &&
-      !productState.hiddenObservationIds.includes(observation.id)
-    )),
+    () =>
+      observations.filter(
+        (observation) =>
+          isObservationActive(observation, observationClock) &&
+          !productState.hiddenObservationIds.includes(observation.id),
+      ),
     [observationClock, observations, productState.hiddenObservationIds],
   );
-  const reduceMotion = prefersReducedMotion || !localCore.preferences.motionEnabled || productState.settings.reduceMotion;
+  const reduceMotion =
+    prefersReducedMotion || !localCore.preferences.motionEnabled || productState.settings.reduceMotion;
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -349,16 +357,19 @@ export default function AtlasApp() {
     });
   }, []);
 
-  const updateLocalPreferences = useCallback((patch: Partial<WeyraLocalPreferences>) => {
-    commitLocalCore((current) => ({
-      ...current,
-      preferences: { ...current.preferences, ...patch },
-    }));
-    if (typeof patch.radarVisible === "boolean") setRadarVisible(patch.radarVisible);
-    if (typeof patch.radarLoop === "boolean") setOperaLoopEnabled(patch.radarLoop);
-    if (patch.radarSpeed) setOperaPlaybackSpeed(patch.radarSpeed);
-    if (typeof patch.observationsVisible === "boolean") setObservationsVisible(patch.observationsVisible);
-  }, [commitLocalCore]);
+  const updateLocalPreferences = useCallback(
+    (patch: Partial<WeyraLocalPreferences>) => {
+      commitLocalCore((current) => ({
+        ...current,
+        preferences: { ...current.preferences, ...patch },
+      }));
+      if (typeof patch.radarVisible === "boolean") setRadarVisible(patch.radarVisible);
+      if (typeof patch.radarLoop === "boolean") setOperaLoopEnabled(patch.radarLoop);
+      if (patch.radarSpeed) setOperaPlaybackSpeed(patch.radarSpeed);
+      if (typeof patch.observationsVisible === "boolean") setObservationsVisible(patch.observationsVisible);
+    },
+    [commitLocalCore],
+  );
 
   const navigateProductSpace = useCallback((space: WeyraSpace) => {
     if (space === "atlas") {
@@ -407,14 +418,17 @@ export default function AtlasApp() {
     }
   }, [showToast]);
 
-  const refreshWeather = useCallback(async (target: LocationSelection) => {
-    try {
-      setWeather(await fetchWeather(target));
-    } catch (error) {
-      console.error(error);
-      showToast("La météo est momentanément indisponible.");
-    }
-  }, [showToast]);
+  const refreshWeather = useCallback(
+    async (target: LocationSelection) => {
+      try {
+        setWeather(await fetchWeather(target));
+      } catch (error) {
+        console.error(error);
+        showToast("La météo est momentanément indisponible.");
+      }
+    },
+    [showToast],
+  );
 
   const refreshRadar = useCallback(async () => {
     try {
@@ -423,7 +437,13 @@ export default function AtlasApp() {
       const minuteKey = Math.floor(Date.now() / 60_000);
       const response = await fetch(`/api/radar/timeline?weyra=${minuteKey}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Radar provider unavailable");
-      const data = await response.json() as { host?: string; radar?: { past?: RadarFrame[] }; past?: RadarFrame[]; provider?: string; cadenceMinutes?: number };
+      const data = (await response.json()) as {
+        host?: string;
+        radar?: { past?: RadarFrame[] };
+        past?: RadarFrame[];
+        provider?: string;
+        cadenceMinutes?: number;
+      };
       const frames = (data.radar?.past ?? data.past ?? []) as RadarFrame[];
       if (!frames.length) throw new Error("Radar provider returned no frames");
 
@@ -432,9 +452,11 @@ export default function AtlasApp() {
       const shouldFollowLive = radarFollowingLiveRef.current || previousFrames.length === 0;
       let nextIndex = Math.max(0, frames.length - 1);
       if (!shouldFollowLive && previousTime) {
-        nextIndex = frames.reduce((bestIndex, frame, index) => (
-          Math.abs(frame.time - previousTime) < Math.abs(frames[bestIndex].time - previousTime) ? index : bestIndex
-        ), 0);
+        nextIndex = frames.reduce(
+          (bestIndex, frame, index) =>
+            Math.abs(frame.time - previousTime) < Math.abs(frames[bestIndex].time - previousTime) ? index : bestIndex,
+          0,
+        );
       }
 
       radarFramesRef.current = frames;
@@ -474,83 +496,95 @@ export default function AtlasApp() {
     }
   }, []);
 
-  const transitionToOperaIndex = useCallback((nextIndex: number, options: { immediate?: boolean; fromPlayback?: boolean } = {}) => {
-    if (operaHistoryFrames.length < 1) return;
-    const boundedIndex = Math.max(0, Math.min(operaHistoryFrames.length - 1, nextIndex));
-    const currentIndex = Math.max(0, Math.min(operaHistoryFrames.length - 1, operaFrameIndex));
-    const nextFrame = operaHistoryFrames[boundedIndex];
-    if (!nextFrame) return;
+  const transitionToOperaIndex = useCallback(
+    (nextIndex: number, options: { immediate?: boolean; fromPlayback?: boolean } = {}) => {
+      if (operaHistoryFrames.length < 1) return;
+      const boundedIndex = Math.max(0, Math.min(operaHistoryFrames.length - 1, nextIndex));
+      const currentIndex = Math.max(0, Math.min(operaHistoryFrames.length - 1, operaFrameIndex));
+      const nextFrame = operaHistoryFrames[boundedIndex];
+      if (!nextFrame) return;
 
-    clearOperaTimers();
+      clearOperaTimers();
 
-    if (boundedIndex === currentIndex || options.immediate || reduceMotion) {
-      setOperaTransition(null);
-      setOperaFrameIndex(boundedIndex);
-      setOperaMapFrameIndex(boundedIndex);
-      setOperaRadarStatus((current) => ({
-        ...current,
-        available: true,
-        timestamp: nextFrame.timestamp,
-        historyStatus: "ready",
-        historyReadyCount: operaHistoryFrames.length,
-        historyTotalCount: OPERA_FRAME_COUNT,
-      }));
-      return;
-    }
-
-    const wrapsForward = currentIndex === operaHistoryFrames.length - 1 && boundedIndex === 0;
-    const durationMs = wrapsForward ? OPERA_LOOP_FADE_MS : OPERA_FADE_MS;
-    const transitionId = ++operaTransitionIdRef.current;
-    setOperaTransition({ id: transitionId, toFrame: nextFrame, durationMs });
-
-    operaDominanceTimerRef.current = window.setTimeout(() => {
-      setOperaFrameIndex(boundedIndex);
-      setOperaRadarStatus((current) => ({
-        ...current,
-        available: true,
-        timestamp: nextFrame.timestamp,
-        historyStatus: "ready",
-        historyReadyCount: operaHistoryFrames.length,
-        historyTotalCount: OPERA_FRAME_COUNT,
-      }));
-      operaDominanceTimerRef.current = null;
-    }, Math.max(80, Math.floor(durationMs * 0.56)));
-
-    operaFinishTimerRef.current = window.setTimeout(() => {
-      setOperaMapFrameIndex(boundedIndex);
-      setOperaTransition(null);
-      operaFinishTimerRef.current = null;
-    }, durationMs + 70);
-
-    if (!options.fromPlayback) stopOperaPlayback();
-  }, [clearOperaTimers, operaFrameIndex, operaHistoryFrames, reduceMotion, stopOperaPlayback]);
-
-  const goToOperaAdjacent = useCallback((direction: 1 | -1, options: { fromPlayback?: boolean } = {}) => {
-    if (operaHistoryFrames.length < 2) return;
-    const atStart = operaFrameIndex <= 0;
-    const atEnd = operaFrameIndex >= operaHistoryFrames.length - 1;
-
-    if (direction > 0 && atEnd) {
-      if (!operaLoopEnabled) {
-        stopOperaPlayback();
+      if (boundedIndex === currentIndex || options.immediate || reduceMotion) {
+        setOperaTransition(null);
+        setOperaFrameIndex(boundedIndex);
+        setOperaMapFrameIndex(boundedIndex);
+        setOperaRadarStatus((current) => ({
+          ...current,
+          available: true,
+          timestamp: nextFrame.timestamp,
+          historyStatus: "ready",
+          historyReadyCount: operaHistoryFrames.length,
+          historyTotalCount: OPERA_FRAME_COUNT,
+        }));
         return;
       }
-      transitionToOperaIndex(0, options);
-      return;
-    }
 
-    if (direction < 0 && atStart) {
-      transitionToOperaIndex(operaHistoryFrames.length - 1, options);
-      return;
-    }
+      const wrapsForward = currentIndex === operaHistoryFrames.length - 1 && boundedIndex === 0;
+      const durationMs = wrapsForward ? OPERA_LOOP_FADE_MS : OPERA_FADE_MS;
+      const transitionId = ++operaTransitionIdRef.current;
+      setOperaTransition({ id: transitionId, toFrame: nextFrame, durationMs });
 
-    transitionToOperaIndex(operaFrameIndex + direction, options);
-  }, [operaFrameIndex, operaHistoryFrames.length, operaLoopEnabled, stopOperaPlayback, transitionToOperaIndex]);
+      operaDominanceTimerRef.current = window.setTimeout(
+        () => {
+          setOperaFrameIndex(boundedIndex);
+          setOperaRadarStatus((current) => ({
+            ...current,
+            available: true,
+            timestamp: nextFrame.timestamp,
+            historyStatus: "ready",
+            historyReadyCount: operaHistoryFrames.length,
+            historyTotalCount: OPERA_FRAME_COUNT,
+          }));
+          operaDominanceTimerRef.current = null;
+        },
+        Math.max(80, Math.floor(durationMs * 0.56)),
+      );
 
-  const selectOperaIndex = useCallback((nextIndex: number) => {
-    stopOperaPlayback();
-    transitionToOperaIndex(nextIndex, { immediate: true });
-  }, [stopOperaPlayback, transitionToOperaIndex]);
+      operaFinishTimerRef.current = window.setTimeout(() => {
+        setOperaMapFrameIndex(boundedIndex);
+        setOperaTransition(null);
+        operaFinishTimerRef.current = null;
+      }, durationMs + 70);
+
+      if (!options.fromPlayback) stopOperaPlayback();
+    },
+    [clearOperaTimers, operaFrameIndex, operaHistoryFrames, reduceMotion, stopOperaPlayback],
+  );
+
+  const goToOperaAdjacent = useCallback(
+    (direction: 1 | -1, options: { fromPlayback?: boolean } = {}) => {
+      if (operaHistoryFrames.length < 2) return;
+      const atStart = operaFrameIndex <= 0;
+      const atEnd = operaFrameIndex >= operaHistoryFrames.length - 1;
+
+      if (direction > 0 && atEnd) {
+        if (!operaLoopEnabled) {
+          stopOperaPlayback();
+          return;
+        }
+        transitionToOperaIndex(0, options);
+        return;
+      }
+
+      if (direction < 0 && atStart) {
+        transitionToOperaIndex(operaHistoryFrames.length - 1, options);
+        return;
+      }
+
+      transitionToOperaIndex(operaFrameIndex + direction, options);
+    },
+    [operaFrameIndex, operaHistoryFrames.length, operaLoopEnabled, stopOperaPlayback, transitionToOperaIndex],
+  );
+
+  const selectOperaIndex = useCallback(
+    (nextIndex: number) => {
+      stopOperaPlayback();
+      transitionToOperaIndex(nextIndex, { immediate: true });
+    },
+    [stopOperaPlayback, transitionToOperaIndex],
+  );
 
   const goToLatestOperaFrame = useCallback(() => {
     if (!operaHistoryFrames.length) return;
@@ -630,7 +664,7 @@ export default function AtlasApp() {
           const backward = (currentIndex - index + frameCount) % frameCount;
           return { frame, index, distance: Math.min(forward, backward), forward };
         })
-        .sort((a, b) => (a.distance - b.distance) || (a.forward - b.forward) || (b.index - a.index));
+        .sort((a, b) => a.distance - b.distance || a.forward - b.forward || b.index - a.index);
 
       const preloadFrame = async (frame: OperaRadarHistoryFrame) => {
         if (cancelled || signal.aborted || run !== generation) return;
@@ -651,22 +685,27 @@ export default function AtlasApp() {
         }
 
         const encoded = encodeURIComponent(frame.timestamp);
-        const urls = tiles.map((tile) => `/api/radar/opera/packs/${encoded}/overview/${tile.z}/${tile.x}/${tile.y}?style=${OPERA_TILE_STYLE}`);
+        const urls = tiles.map(
+          (tile) =>
+            `/api/radar/opera/packs/${encoded}/overview/${tile.z}/${tile.x}/${tile.y}?style=${OPERA_TILE_STYLE}`,
+        );
         let frameReady = true;
         for (let index = 0; index < urls.length; index += 10) {
           if (cancelled || signal.aborted || run !== generation) return;
-          const results = await Promise.all(urls.slice(index, index + 10).map(async (url) => {
-            try {
-              const response = await fetch(url, { cache: "force-cache", signal });
-              if (!response.ok) return false;
-              await response.arrayBuffer();
-              return true;
-            } catch (error) {
-              if (signal.aborted) return false;
-              console.debug("OPERA overview warm-up skipped a tile", error);
-              return false;
-            }
-          }));
+          const results = await Promise.all(
+            urls.slice(index, index + 10).map(async (url) => {
+              try {
+                const response = await fetch(url, { cache: "force-cache", signal });
+                if (!response.ok) return false;
+                await response.arrayBuffer();
+                return true;
+              } catch (error) {
+                if (signal.aborted) return false;
+                console.debug("OPERA overview warm-up skipped a tile", error);
+                return false;
+              }
+            }),
+          );
           if (results.some((ready) => !ready)) frameReady = false;
         }
 
@@ -762,13 +801,14 @@ export default function AtlasApp() {
     // blocks the first paint, no per-frame metadata round trips, no client-side preparation.
     let cancelled = false;
 
-    const sleep = (delayMs: number) => new Promise<void>((resolve) => {
-      window.setTimeout(resolve, delayMs);
-    });
+    const sleep = (delayMs: number) =>
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, delayMs);
+      });
 
     const readPacks = async () => {
       const response = await fetch("/api/radar/opera/packs", { cache: "no-store" });
-      const payload = await response.json() as OperaScanPackListResponse;
+      const payload = (await response.json()) as OperaScanPackListResponse;
       if (!response.ok || !payload.ok || !Array.isArray(payload.packs)) {
         throw new Error(`OPERA scan packs list HTTP ${response.status}.`);
       }
@@ -778,8 +818,9 @@ export default function AtlasApp() {
     const triggerMaintenance = () => {
       if (process.env.NODE_ENV === "production") return;
       // Fire-and-forget: the server builds missing packs in the background (202 immediately).
-      void fetch("/api/radar/opera/packs/maintenance", { method: "POST", cache: "no-store" })
-        .catch((error) => console.debug("OPERA pack maintenance trigger failed", error));
+      void fetch("/api/radar/opera/packs/maintenance", { method: "POST", cache: "no-store" }).catch((error) =>
+        console.debug("OPERA pack maintenance trigger failed", error),
+      );
     };
 
     const showFirstRadarPreparation = () => {
@@ -808,8 +849,14 @@ export default function AtlasApp() {
       }
 
       const previousFrames = operaHistoryFramesRef.current;
-      const changed = previousFrames.length !== frames.length ||
-        frames.some((frame, index) => previousFrames[index]?.timestamp !== frame.timestamp);
+      const changed =
+        previousFrames.length !== frames.length ||
+        frames.some(
+          (frame, index) =>
+            previousFrames[index]?.timestamp !== frame.timestamp ||
+            previousFrames[index]?.pack?.provider !== frame.pack?.provider ||
+            previousFrames[index]?.pack?.packVersion !== frame.pack?.packVersion,
+        );
 
       if (changed) {
         const previousIndex = operaFrameIndexRef.current;
@@ -826,7 +873,8 @@ export default function AtlasApp() {
         // (there is no previous frame to dissolve from, so animating it would only add delay).
         const newestTimestamp = frames[frames.length - 1]?.timestamp;
         const previousNewestTimestamp = previousFrames[previousFrames.length - 1]?.timestamp;
-        const isLiveAdvance = previousFrames.length > 0 &&
+        const isLiveAdvance =
+          previousFrames.length > 0 &&
           wasAtLatest &&
           nextIndex === frames.length - 1 &&
           newestTimestamp !== previousNewestTimestamp &&
@@ -840,18 +888,21 @@ export default function AtlasApp() {
           const transitionId = ++operaTransitionIdRef.current;
           setOperaTransition({ id: transitionId, toFrame: nextFrame, durationMs: OPERA_FADE_MS });
 
-          operaDominanceTimerRef.current = window.setTimeout(() => {
-            setOperaFrameIndex(nextIndex);
-            setOperaRadarStatus((current) => ({
-              ...current,
-              available: true,
-              timestamp: nextFrame.timestamp,
-              historyStatus: "ready",
-              historyReadyCount: frames.length,
-              historyTotalCount: OPERA_FRAME_COUNT,
-            }));
-            operaDominanceTimerRef.current = null;
-          }, Math.max(80, Math.floor(OPERA_FADE_MS * 0.56)));
+          operaDominanceTimerRef.current = window.setTimeout(
+            () => {
+              setOperaFrameIndex(nextIndex);
+              setOperaRadarStatus((current) => ({
+                ...current,
+                available: true,
+                timestamp: nextFrame.timestamp,
+                historyStatus: "ready",
+                historyReadyCount: frames.length,
+                historyTotalCount: OPERA_FRAME_COUNT,
+              }));
+              operaDominanceTimerRef.current = null;
+            },
+            Math.max(80, Math.floor(OPERA_FADE_MS * 0.56)),
+          );
 
           operaFinishTimerRef.current = window.setTimeout(() => {
             setOperaMapFrameIndex(nextIndex);
@@ -867,9 +918,11 @@ export default function AtlasApp() {
       setOperaLoadedCount(frames.length);
       if (frames.length >= 2) {
         setOperaHistoryState("ready");
-        setOperaProgressLabel(frames.length >= OPERA_FRAME_COUNT
-          ? "Historique 1 h prêt"
-          : `Historique partiel ${frames.length} / ${OPERA_FRAME_COUNT}`);
+        setOperaProgressLabel(
+          frames.length >= OPERA_FRAME_COUNT
+            ? "Historique 1 h prêt"
+            : `Historique partiel ${frames.length} / ${OPERA_FRAME_COUNT}`,
+        );
       } else {
         setOperaHistoryState("preparing");
         setOperaProgressLabel("Préparation des scans suivants…");
@@ -938,9 +991,11 @@ export default function AtlasApp() {
     // the radar is caught up the instant the user looks at it again.
     const onVisible = () => {
       if (cancelled || document.visibilityState !== "visible") return;
-      void readPacks().then((payload) => applyPacks(payload.packs)).catch((error) => {
-        console.debug("OPERA scan packs visibility refresh failed", error);
-      });
+      void readPacks()
+        .then((payload) => applyPacks(payload.packs))
+        .catch((error) => {
+          console.debug("OPERA scan packs visibility refresh failed", error);
+        });
       triggerMaintenance();
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -994,7 +1049,14 @@ export default function AtlasApp() {
         operaTimerRef.current = null;
       }
     };
-  }, [goToOperaAdjacent, operaHistoryFrames.length, operaHistoryState, operaPlaybackSpeed, operaPlaying, operaTransition]);
+  }, [
+    goToOperaAdjacent,
+    operaHistoryFrames.length,
+    operaHistoryState,
+    operaPlaybackSpeed,
+    operaPlaying,
+    operaTransition,
+  ]);
 
   useEffect(() => {
     if (query.trim().length < 3) {
@@ -1053,9 +1115,7 @@ export default function AtlasApp() {
   const displayApparentTemperature = weather
     ? Math.round(convertTemperature(weather.apparentTemperature, temperatureUnit))
     : null;
-  const displayWindSpeed = weather
-    ? Math.round(convertWindSpeed(weather.windSpeed, windUnit))
-    : null;
+  const displayWindSpeed = weather ? Math.round(convertWindSpeed(weather.windSpeed, windUnit)) : null;
   const currentRadarFrame = radarFrames[radarFrameIndex];
   const latestRadarFrame = radarFrames.at(-1);
   const latestAge = scanAgeMinutes(latestRadarFrame);
@@ -1067,6 +1127,27 @@ export default function AtlasApp() {
   const operaRadarAvailable = operaRadarStatus.available;
   const operaTimelineFrame = operaHistoryFrames[operaFrameIndex] ?? null;
   const operaMapFrame = operaHistoryFrames[operaMapFrameIndex] ?? null;
+  const activeRadarPack = operaTimelineFrame?.pack ?? operaHistoryFrames.at(-1)?.pack ?? null;
+  const activeRadarProvider = activeRadarPack?.provider ?? "EUMETNET OPERA";
+  const activeRadarSourceLabel = activeRadarProvider === "Météo-France" ? "Météo-France" : "EUMETNET OPERA";
+  const activeRadarCompactLabel = activeRadarProvider === "Météo-France" ? "MÉTÉO-FRANCE" : "OPERA";
+  const activeRadarCoverageLabel = activeRadarProvider === "Météo-France" ? "France métropolitaine" : "Europe";
+  const activeRadarResolutionLabel = activeRadarPack?.nativeResolutionMeters
+    ? `${activeRadarPack.nativeResolutionMeters / 1000} km`
+    : null;
+  const activeRadarQualityLabel =
+    activeRadarPack?.rainProbabilityThreshold !== null && activeRadarPack?.rainProbabilityThreshold !== undefined
+      ? `échos pluie ≥ ${Math.round(activeRadarPack.rainProbabilityThreshold * 100)} %`
+      : null;
+  const activeRadarAgeMinutes = operaTimelineFrame?.timestamp
+    ? Math.max(0, Math.floor((observationClock - new Date(operaTimelineFrame.timestamp).getTime()) / 60_000))
+    : null;
+  const activeRadarFreshnessLabel =
+    activeRadarAgeMinutes === null
+      ? null
+      : activeRadarAgeMinutes < 1
+        ? "à l’instant"
+        : `il y a ${activeRadarAgeMinutes} min`;
   const operaCanUseHistory = operaHistoryState === "ready" && operaHistoryFrames.length >= 2;
   const operaHasFullHistory = operaCanUseHistory && operaHistoryFrames.length >= OPERA_FRAME_COUNT;
   const operaCanStep = operaCanUseHistory;
@@ -1077,27 +1158,35 @@ export default function AtlasApp() {
   const operaTimelineStatus = operaTilesPreparing
     ? "Préparation radar…"
     : operaCanUseHistory
-    ? operaHasFullHistory ? "Historique 1 h · 12 scans" : `Historique partiel ${operaHistoryFrames.length} / ${OPERA_FRAME_COUNT} scans`
-    : operaHistoryState === "preparing" || operaHistoryState === "preloading"
-      ? operaProgressLabel
-    : operaHistoryState === "unavailable"
-        ? "Radar tuilé indisponible"
-        : operaRadarAvailable
-          ? "Préparation du radar"
-          : "OPERA indisponible";
+      ? operaHasFullHistory
+        ? "Historique 1 h · 12 scans"
+        : `Historique partiel ${operaHistoryFrames.length} / ${OPERA_FRAME_COUNT} scans`
+      : operaHistoryState === "preparing" || operaHistoryState === "preloading"
+        ? operaProgressLabel
+        : operaHistoryState === "unavailable"
+          ? "Radar tuilé indisponible"
+          : operaRadarAvailable
+            ? "Préparation du radar"
+            : "Radar indisponible";
   const operaLayerDetail = operaCanUseHistory
-    ? "DBZH · tuiles Weyra"
+    ? ["DBZH", activeRadarResolutionLabel, activeRadarCoverageLabel, activeRadarQualityLabel, activeRadarFreshnessLabel]
+        .filter(Boolean)
+        .join(" · ")
     : operaRadarAvailable
-      ? `DBZH · tuiles Weyra${operaRadarTime ? ` · ${operaRadarTime}` : ""}`
+      ? `DBZH${activeRadarResolutionLabel ? ` · ${activeRadarResolutionLabel}` : ""}${operaRadarTime ? ` · ${operaRadarTime}` : ""}`
       : "Radar tuilé indisponible";
   const radarPanelStatus = operaRadarAvailable
-    ? `Radar OPERA · DBZH · tuiles Weyra${operaRadarTime ? ` · ${operaRadarTime}` : ""}`
+    ? [activeRadarSourceLabel, "DBZH", activeRadarCoverageLabel, activeRadarQualityLabel, activeRadarFreshnessLabel]
+        .filter(Boolean)
+        .join(" · ")
     : "Radar tuilé indisponible";
   const operaWarmedSet = useMemo(() => new Set(operaWarmedTimestamps), [operaWarmedTimestamps]);
   const operaWarmReadyCount = operaHistoryFrames.filter((frame) => operaWarmedSet.has(frame.timestamp)).length;
   const operaBufferStatus = operaCanUseHistory
     ? `${operaWarmReadyCount}/${operaHistoryFrames.length} scans en mémoire`
-    : operaLoadedCount > 0 ? `${operaLoadedCount}/${OPERA_FRAME_COUNT} scans disponibles` : operaTimelineStatus;
+    : operaLoadedCount > 0
+      ? `${operaLoadedCount}/${OPERA_FRAME_COUNT} scans disponibles`
+      : operaTimelineStatus;
   const operaTimelineStart = formatOperaTimelineTime(operaHistoryFrames[0]?.timestamp ?? null);
   const operaTimelineEnd = formatOperaTimelineTime(operaHistoryFrames.at(-1)?.timestamp ?? null);
 
@@ -1105,18 +1194,23 @@ export default function AtlasApp() {
     mapRef.current = map;
     setMapInstance(map);
   }, []);
-  const onMapClick = useCallback((coords: Coordinates) => { setReportPosition(coords); }, []);
+  const onMapClick = useCallback((coords: Coordinates) => {
+    setReportPosition(coords);
+  }, []);
 
-  const chooseLocation = useCallback(async (next: LocationSelection, writeQuery = true) => {
-    setLocation(next);
-    setReportPosition({ lat: next.lat, lon: next.lon });
-    setQuery(writeQuery ? next.name : "");
-    setSearchOpen(false);
-    setSearchFocused(false);
-    setSelectedObservation(null);
-    commitLocalCore((current) => rememberPlace(current, next));
-    await refreshWeather(next);
-  }, [commitLocalCore, refreshWeather]);
+  const chooseLocation = useCallback(
+    async (next: LocationSelection, writeQuery = true) => {
+      setLocation(next);
+      setReportPosition({ lat: next.lat, lon: next.lon });
+      setQuery(writeQuery ? next.name : "");
+      setSearchOpen(false);
+      setSearchFocused(false);
+      setSelectedObservation(null);
+      commitLocalCore((current) => rememberPlace(current, next));
+      await refreshWeather(next);
+    },
+    [commitLocalCore, refreshWeather],
+  );
 
   const useCurrentPosition = useCallback(() => {
     if (!navigator.geolocation) {
@@ -1126,7 +1220,10 @@ export default function AtlasApp() {
     showToast("Recherche de ta position…");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void chooseLocation({ name: "Position actuelle", country: "", lat: position.coords.latitude, lon: position.coords.longitude }, false);
+        void chooseLocation(
+          { name: "Position actuelle", country: "", lat: position.coords.latitude, lon: position.coords.longitude },
+          false,
+        );
         showToast("Position utilisée. Elle n’est jamais publiée automatiquement.");
       },
       () => showToast("Position indisponible ou autorisation refusée."),
@@ -1134,149 +1231,174 @@ export default function AtlasApp() {
     );
   }, [chooseLocation, showToast]);
 
-  const publishObservation = useCallback(async (input: {
-    phenomena: Observation["category"][];
-    intensity: number;
-    durationMinutes: number;
-    nickname: string;
-    details: string;
-    photo: File | null;
-    preciseLocation: boolean;
-  }) => {
-    if (input.photo && input.photo.size > 2_500_000) {
-      showToast("La photo est limitée à 2,5 Mo pour le prototype.");
-      return;
-    }
-    const imageUrl = input.photo ? await uploadObservationPhoto(input.photo) : null;
-    const createdAt = new Date().toISOString();
-    const primaryCategory = input.phenomena[0] ?? "nuage";
-    const observation: Observation = {
-      id: crypto.randomUUID(),
-      nickname: input.nickname.trim().slice(0, 24) || "Membre Weyra",
-      category: primaryCategory,
-      phenomena: input.phenomena,
-      intensity: input.intensity,
-      details: input.details.trim().slice(0, 350) || null,
-      imageUrl,
-      lat: input.preciseLocation ? reportPosition.lat : Math.round(reportPosition.lat * 1000) / 1000,
-      lon: input.preciseLocation ? reportPosition.lon : Math.round(reportPosition.lon * 1000) / 1000,
-      createdAt,
-      expiresAt: observationExpiresAt(createdAt, input.durationMinutes),
-      likes: 0,
-      place: location.name,
-    };
-    const persistence = await createObservation(observation);
-    updateLocalPreferences({ nickname: observation.nickname });
-    await refreshObservations();
-    setDrawerOpen(false);
-    setSelectedObservation(observation);
-    mapRef.current?.flyTo({ center: [observation.lon, observation.lat], zoom: Math.max(mapRef.current.getZoom(), 10.5), essential: true });
-    showToast(
-      persistence.synced
-        ? "Observation envoyée à la modération Weyra."
-        : "Observation enregistrée sur cet appareil.",
-    );
-  }, [location.name, refreshObservations, reportPosition.lat, reportPosition.lon, showToast, updateLocalPreferences]);
-
-  const handleConfirmObservation = useCallback(async (observation: Observation) => {
-    const result = await confirmObservation(observation);
-    if (!result.changed) {
-      showToast("Tu as déjà confirmé ce signal.");
-      return;
-    }
-    setConfirmedObservationIds(loadConfirmedObservationIds());
-    setObservations((current) => current.map((item) => (
-      item.id === observation.id ? { ...item, likes: result.likes } : item
-    )));
-    setSelectedObservation((current) => (
-      current?.id === observation.id ? { ...current, likes: result.likes } : current
-    ));
-    showToast("Signal confirmé. Merci d’aider la communauté.");
-  }, [showToast]);
-
-  const shareObservation = useCallback(async (observation: Observation) => {
-    const labels = observationPhenomena(observation)
-      .map((category) => CATEGORY_META[category].shortLabel)
-      .join(", ");
-    const text = `${labels} signalé${labels.includes(",") ? "s" : ""} près de ${observation.place ?? "cette zone"} sur Weyra.`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Observation Weyra", text, url: window.location.href });
-      } else {
-        await navigator.clipboard.writeText(`${text} ${window.location.href}`);
-        showToast("Lien de l’observation copié.");
+  const publishObservation = useCallback(
+    async (input: {
+      phenomena: Observation["category"][];
+      intensity: number;
+      durationMinutes: number;
+      nickname: string;
+      details: string;
+      photo: File | null;
+      preciseLocation: boolean;
+    }) => {
+      if (input.photo && input.photo.size > 2_500_000) {
+        showToast("La photo est limitée à 2,5 Mo pour le prototype.");
+        return;
       }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      showToast("Le partage n’est pas disponible sur cet appareil.");
-    }
-  }, [showToast]);
+      const imageUrl = input.photo ? await uploadObservationPhoto(input.photo) : null;
+      const createdAt = new Date().toISOString();
+      const primaryCategory = input.phenomena[0] ?? "nuage";
+      const observation: Observation = {
+        id: crypto.randomUUID(),
+        nickname: input.nickname.trim().slice(0, 24) || "Membre Weyra",
+        category: primaryCategory,
+        phenomena: input.phenomena,
+        intensity: input.intensity,
+        details: input.details.trim().slice(0, 350) || null,
+        imageUrl,
+        lat: input.preciseLocation ? reportPosition.lat : Math.round(reportPosition.lat * 1000) / 1000,
+        lon: input.preciseLocation ? reportPosition.lon : Math.round(reportPosition.lon * 1000) / 1000,
+        createdAt,
+        expiresAt: observationExpiresAt(createdAt, input.durationMinutes),
+        likes: 0,
+        place: location.name,
+      };
+      const persistence = await createObservation(observation);
+      updateLocalPreferences({ nickname: observation.nickname });
+      await refreshObservations();
+      setDrawerOpen(false);
+      setSelectedObservation(observation);
+      mapRef.current?.flyTo({
+        center: [observation.lon, observation.lat],
+        zoom: Math.max(mapRef.current.getZoom(), 10.5),
+        essential: true,
+      });
+      showToast(
+        persistence.synced ? "Observation envoyée à la modération Weyra." : "Observation enregistrée sur cet appareil.",
+      );
+    },
+    [location.name, refreshObservations, reportPosition.lat, reportPosition.lon, showToast, updateLocalPreferences],
+  );
+
+  const handleConfirmObservation = useCallback(
+    async (observation: Observation) => {
+      const result = await confirmObservation(observation);
+      if (!result.changed) {
+        showToast("Tu as déjà confirmé ce signal.");
+        return;
+      }
+      setConfirmedObservationIds(loadConfirmedObservationIds());
+      setObservations((current) =>
+        current.map((item) => (item.id === observation.id ? { ...item, likes: result.likes } : item)),
+      );
+      setSelectedObservation((current) =>
+        current?.id === observation.id ? { ...current, likes: result.likes } : current,
+      );
+      showToast("Signal confirmé. Merci d’aider la communauté.");
+    },
+    [showToast],
+  );
+
+  const shareObservation = useCallback(
+    async (observation: Observation) => {
+      const labels = observationPhenomena(observation)
+        .map((category) => CATEGORY_META[category].shortLabel)
+        .join(", ");
+      const text = `${labels} signalé${labels.includes(",") ? "s" : ""} près de ${observation.place ?? "cette zone"} sur Weyra.`;
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: "Observation Weyra", text, url: window.location.href });
+        } else {
+          await navigator.clipboard.writeText(`${text} ${window.location.href}`);
+          showToast("Lien de l’observation copié.");
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        showToast("Le partage n’est pas disponible sur cet appareil.");
+      }
+    },
+    [showToast],
+  );
 
   const localAlerts = useMemo(() => deriveLocalAlerts(weather, location), [weather, location]);
   const nowcast = useMemo(
-    () => deriveNowcast(
-      weather,
-      location,
-      visibleObservations,
-      radarVisible && operaRadarAvailable,
-      observationClock,
-    ),
+    () => deriveNowcast(weather, location, visibleObservations, radarVisible && operaRadarAvailable, observationClock),
     [weather, location, visibleObservations, radarVisible, operaRadarAvailable, observationClock],
   );
-  const activityEntries = useMemo(() => deriveActivityEntries({
-    alerts: localAlerts,
-    observations: activeObservations,
-    location,
-    radarTimestamp: operaRadarStatus.timestamp,
-    radarAvailable: operaRadarAvailable,
-  }), [activeObservations, localAlerts, location, operaRadarAvailable, operaRadarStatus.timestamp]);
-  const unreadActivityCount = activityEntries.filter((entry) => !productState.readActivityIds.includes(entry.id)).length;
+  const activityEntries = useMemo(
+    () =>
+      deriveActivityEntries({
+        alerts: localAlerts,
+        observations: activeObservations,
+        location,
+        radarTimestamp: operaRadarStatus.timestamp,
+        radarAvailable: operaRadarAvailable,
+      }),
+    [activeObservations, localAlerts, location, operaRadarAvailable, operaRadarStatus.timestamp],
+  );
+  const unreadActivityCount = activityEntries.filter(
+    (entry) => !productState.readActivityIds.includes(entry.id),
+  ).length;
   const localSearchPlaces = useMemo(() => {
     const seen = new Set<string>();
-    return [...localCore.savedPlaces, ...localCore.recentPlaces].filter((place) => {
-      if (seen.has(place.key)) return false;
-      seen.add(place.key);
-      return true;
-    }).slice(0, 7);
+    return [...localCore.savedPlaces, ...localCore.recentPlaces]
+      .filter((place) => {
+        if (seen.has(place.key)) return false;
+        seen.add(place.key);
+        return true;
+      })
+      .slice(0, 7);
   }, [localCore.recentPlaces, localCore.savedPlaces]);
 
-  const handleToggleSavedPlace = useCallback((place: LocationSelection) => {
-    const wasSaved = localCore.savedPlaces.some((item) => item.key === localPlaceKey(place));
-    commitLocalCore((current) => toggleSavedPlace(current, place));
-    showToast(wasSaved ? `${place.name} retiré des favoris.` : `${place.name} ajouté aux favoris.`);
-  }, [commitLocalCore, localCore.savedPlaces, showToast]);
+  const handleToggleSavedPlace = useCallback(
+    (place: LocationSelection) => {
+      const wasSaved = localCore.savedPlaces.some((item) => item.key === localPlaceKey(place));
+      commitLocalCore((current) => toggleSavedPlace(current, place));
+      showToast(wasSaved ? `${place.name} retiré des favoris.` : `${place.name} ajouté aux favoris.`);
+    },
+    [commitLocalCore, localCore.savedPlaces, showToast],
+  );
 
-  const handleSelectLocalPlace = useCallback((place: LocationSelection) => {
-    setActiveOverlay(null);
-    void chooseLocation(place);
-  }, [chooseLocation]);
+  const handleSelectLocalPlace = useCallback(
+    (place: LocationSelection) => {
+      setActiveOverlay(null);
+      void chooseLocation(place);
+    },
+    [chooseLocation],
+  );
 
   const resetLocalPreferences = useCallback(() => {
     updateLocalPreferences({ ...DEFAULT_LOCAL_PREFERENCES });
     showToast("Préférences locales réinitialisées.");
   }, [showToast, updateLocalPreferences]);
 
-  const openMapFromWorkspace = useCallback((lat: number, lon: number) => {
-    closeProductWorkspace();
-    window.setTimeout(() => {
-      mapRef.current?.flyTo({
-        center: [lon, lat],
-        zoom: Math.max(mapRef.current.getZoom(), 10),
-        essential: true,
-        duration: 700,
-      });
-    }, 80);
-  }, [closeProductWorkspace]);
+  const openMapFromWorkspace = useCallback(
+    (lat: number, lon: number) => {
+      closeProductWorkspace();
+      window.setTimeout(() => {
+        mapRef.current?.flyTo({
+          center: [lon, lat],
+          zoom: Math.max(mapRef.current.getZoom(), 10),
+          essential: true,
+          duration: 700,
+        });
+      }, 80);
+    },
+    [closeProductWorkspace],
+  );
 
-  const openObservationFromWorkspace = useCallback((observationId: string) => {
-    const observation = activeObservations.find((item) => item.id === observationId);
-    if (!observation) {
-      showToast("Cette observation n'est plus active sur la carte.");
-      return;
-    }
-    closeProductWorkspace();
-    window.setTimeout(() => focusObservation(observation), 80);
-  }, [activeObservations, closeProductWorkspace, focusObservation, showToast]);
+  const openObservationFromWorkspace = useCallback(
+    (observationId: string) => {
+      const observation = activeObservations.find((item) => item.id === observationId);
+      if (!observation) {
+        showToast("Cette observation n'est plus active sur la carte.");
+        return;
+      }
+      closeProductWorkspace();
+      window.setTimeout(() => focusObservation(observation), 80);
+    },
+    [activeObservations, closeProductWorkspace, focusObservation, showToast],
+  );
 
   const selectedWithLatestLike = useMemo(() => {
     if (!selectedObservation) return null;
@@ -1325,8 +1447,16 @@ export default function AtlasApp() {
             ref={searchInputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            onFocus={() => { setSearchFocused(true); setSearchOpen(true); }}
-            onBlur={() => window.setTimeout(() => { setSearchFocused(false); setSearchOpen(false); }, 140)}
+            onFocus={() => {
+              setSearchFocused(true);
+              setSearchOpen(true);
+            }}
+            onBlur={() =>
+              window.setTimeout(() => {
+                setSearchFocused(false);
+                setSearchOpen(false);
+              }, 140)
+            }
             placeholder="Lieu ou coordonnées"
             aria-label="Rechercher un lieu ou des coordonnées"
             aria-expanded={searchOpen}
@@ -1335,20 +1465,38 @@ export default function AtlasApp() {
           {searchOpen && (
             <div className="atlas-search__results">
               {query.trim().length >= 3 ? (
-                searchResults.length ? searchResults.map((item) => (
-                  <button key={`${item.name}-${item.lat}-${item.lon}`} onClick={() => void chooseLocation(item)}>
-                    {item.name}<small>{[item.admin, item.country].filter(Boolean).join(" · ")}</small>
-                  </button>
-                )) : <div className="atlas-search__empty">Aucun lieu trouvé.</div>
+                searchResults.length ? (
+                  searchResults.map((item) => (
+                    <button key={`${item.name}-${item.lat}-${item.lon}`} onClick={() => void chooseLocation(item)}>
+                      {item.name}
+                      <small>{[item.admin, item.country].filter(Boolean).join(" · ")}</small>
+                    </button>
+                  ))
+                ) : (
+                  <div className="atlas-search__empty">Aucun lieu trouvé.</div>
+                )
               ) : (
                 <>
-                  <div className="atlas-search__section"><span>Lieux rapides</span><button type="button" onClick={() => openControlCenter("places")}>Gérer</button></div>
-                  {localSearchPlaces.length ? localSearchPlaces.map((item) => (
-                    <button key={item.key} onClick={() => void chooseLocation(item)}>
-                      {item.name}<small>{[item.admin, item.country].filter(Boolean).join(" · ") || "Lieu récent"}</small>
+                  <div className="atlas-search__section">
+                    <span>Lieux rapides</span>
+                    <button type="button" onClick={() => openControlCenter("places")}>
+                      Gérer
                     </button>
-                  )) : <div className="atlas-search__empty">Tes favoris et lieux récents apparaîtront ici.</div>}
-                  <button className="atlas-search__locate" type="button" onClick={useCurrentPosition}><IconNavigation />Utiliser ma position</button>
+                  </div>
+                  {localSearchPlaces.length ? (
+                    localSearchPlaces.map((item) => (
+                      <button key={item.key} onClick={() => void chooseLocation(item)}>
+                        {item.name}
+                        <small>{[item.admin, item.country].filter(Boolean).join(" · ") || "Lieu récent"}</small>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="atlas-search__empty">Tes favoris et lieux récents apparaîtront ici.</div>
+                  )}
+                  <button className="atlas-search__locate" type="button" onClick={useCurrentPosition}>
+                    <IconNavigation />
+                    Utiliser ma position
+                  </button>
                 </>
               )}
             </div>
@@ -1356,30 +1504,103 @@ export default function AtlasApp() {
         </div>
         <div className="atlas-system-status" title={radarPanelStatus} aria-live="polite">
           <i />
-          <span>OPERA</span>
+          <span>{activeRadarCompactLabel}</span>
           <b>{operaDisplayTime || "LIVE"}</b>
         </div>
         <div className="atlas-topbar__spacer" />
         <div className="atlas-topbar__actions">
-          <button className={`atlas-round-button atlas-round-button--community${["home", "explore", "communities"].includes(activeSpace) ? " is-active" : ""}`} onClick={() => navigateProductSpace("home")} title="Accueil Weyra" aria-label="Ouvrir l’accueil Weyra"><IconUsers /></button>
-          <button className={`atlas-round-button atlas-round-button--notifications${activeSpace === "notifications" ? " is-active" : ""}`} onClick={() => navigateProductSpace("notifications")} title="Notifications" aria-label={`${unreadActivityCount} activités non lues`}><IconBell />{unreadActivityCount > 0 && <i>{Math.min(99, unreadActivityCount)}</i>}</button>
+          <button
+            className={`atlas-round-button atlas-round-button--community${["home", "explore", "communities"].includes(activeSpace) ? " is-active" : ""}`}
+            onClick={() => navigateProductSpace("home")}
+            title="Accueil Weyra"
+            aria-label="Ouvrir l’accueil Weyra"
+          >
+            <IconUsers />
+          </button>
+          <button
+            className={`atlas-round-button atlas-round-button--notifications${activeSpace === "notifications" ? " is-active" : ""}`}
+            onClick={() => navigateProductSpace("notifications")}
+            title="Notifications"
+            aria-label={`${unreadActivityCount} activités non lues`}
+          >
+            <IconBell />
+            {unreadActivityCount > 0 && <i>{Math.min(99, unreadActivityCount)}</i>}
+          </button>
           <div className="atlas-menu">
-            <button className="atlas-round-button" onClick={() => { setActiveOverlay(null); setMenuOpen((value) => !value); }} title="Menu" aria-label="Menu principal" aria-expanded={menuOpen}><IconMenu /></button>
+            <button
+              className="atlas-round-button"
+              onClick={() => {
+                setActiveOverlay(null);
+                setMenuOpen((value) => !value);
+              }}
+              title="Menu"
+              aria-label="Menu principal"
+              aria-expanded={menuOpen}
+            >
+              <IconMenu />
+            </button>
             {menuOpen && (
               <>
-                <button className="atlas-menu__backdrop" onClick={() => setMenuOpen(false)} aria-label="Fermer le menu" />
+                <button
+                  className="atlas-menu__backdrop"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Fermer le menu"
+                />
                 <div className="atlas-menu__panel">
-                  <button onClick={openObservationComposer}><IconPlus />Partager une observation</button>
-                  <button onClick={() => { setMenuOpen(false); setMobileLayersOpen(true); }}><IconSliders />Couches Atlas</button>
-                  <button onClick={() => { setMenuOpen(false); useCurrentPosition(); }}><IconNavigation />Utiliser ma position</button>
-                  <button onClick={() => navigateProductSpace("home")}><IconHome />Accueil Weyra</button>
-                  <button onClick={() => navigateProductSpace("explore")}><IconCompass />Explorer</button>
-                  <button onClick={() => navigateProductSpace("communities")}><IconUsers />Communautés</button>
-                  <button onClick={() => navigateProductSpace("messages")}><IconCloud />Messages</button>
-                  <button onClick={() => navigateProductSpace("learn")}><IconRadar />Apprendre</button>
-                  <button onClick={() => navigateProductSpace("profile")}><IconUsers />Profil et carnet</button>
-                  <button onClick={() => openControlCenter("places")}><IconCompass />Lieux enregistrés</button>
-                  <button onClick={() => navigateProductSpace("settings")}><IconSettings />Préférences</button>
+                  <button onClick={openObservationComposer}>
+                    <IconPlus />
+                    Partager une observation
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setMobileLayersOpen(true);
+                    }}
+                  >
+                    <IconSliders />
+                    Couches Atlas
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      useCurrentPosition();
+                    }}
+                  >
+                    <IconNavigation />
+                    Utiliser ma position
+                  </button>
+                  <button onClick={() => navigateProductSpace("home")}>
+                    <IconHome />
+                    Accueil Weyra
+                  </button>
+                  <button onClick={() => navigateProductSpace("explore")}>
+                    <IconCompass />
+                    Explorer
+                  </button>
+                  <button onClick={() => navigateProductSpace("communities")}>
+                    <IconUsers />
+                    Communautés
+                  </button>
+                  <button onClick={() => navigateProductSpace("messages")}>
+                    <IconCloud />
+                    Messages
+                  </button>
+                  <button onClick={() => navigateProductSpace("learn")}>
+                    <IconRadar />
+                    Apprendre
+                  </button>
+                  <button onClick={() => navigateProductSpace("profile")}>
+                    <IconUsers />
+                    Profil et carnet
+                  </button>
+                  <button onClick={() => openControlCenter("places")}>
+                    <IconCompass />
+                    Lieux enregistrés
+                  </button>
+                  <button onClick={() => navigateProductSpace("settings")}>
+                    <IconSettings />
+                    Préférences
+                  </button>
                 </div>
               </>
             )}
@@ -1393,23 +1614,42 @@ export default function AtlasApp() {
         <header className="atlas-weather-card__header">
           <h1>
             {location.country ? `${location.name}, ${location.country}` : location.name}
-            <button onClick={useCurrentPosition} title="Utiliser ma position"><IconNavigation /></button>
+            <button onClick={useCurrentPosition} title="Utiliser ma position">
+              <IconNavigation />
+            </button>
           </h1>
-          <button className="atlas-weather-card__options" onClick={() => openControlCenter("places")} title="Gérer ce lieu"><IconDotsVertical /></button>
+          <button
+            className="atlas-weather-card__options"
+            onClick={() => openControlCenter("places")}
+            title="Gérer ce lieu"
+          >
+            <IconDotsVertical />
+          </button>
         </header>
         <div className="atlas-weather-card__main">
-          <span className="atlas-weather-card__icon"><WeatherIcon /></span>
+          <span className="atlas-weather-card__icon">
+            <WeatherIcon />
+          </span>
           <div className="atlas-weather-card__hero">
             <strong key={weather?.observedAt ?? "loading"} className="atlas-weather-card__temp">
-              {displayTemperature ?? "—"}<i>{temperatureUnitLabel(temperatureUnit)}</i>
+              {displayTemperature ?? "—"}
+              <i>{temperatureUnitLabel(temperatureUnit)}</i>
             </strong>
             <span className="atlas-weather-card__condition">{currentWeatherInfo.label}</span>
           </div>
         </div>
         <div className="atlas-weather-card__sub">
-          <span>Ressenti {displayApparentTemperature === null ? "—" : `${displayApparentTemperature}${temperatureUnitLabel(temperatureUnit)}`}</span>
+          <span>
+            Ressenti{" "}
+            {displayApparentTemperature === null
+              ? "—"
+              : `${displayApparentTemperature}${temperatureUnitLabel(temperatureUnit)}`}
+          </span>
           <span className="atlas-weather-card__dot" aria-hidden="true" />
-          <span className="atlas-weather-card__updated"><IconClock />{formatWeatherUpdatedAt(weather?.observedAt)}</span>
+          <span className="atlas-weather-card__updated">
+            <IconClock />
+            {formatWeatherUpdatedAt(weather?.observedAt)}
+          </span>
         </div>
         <div className="atlas-weather-card__stats">
           <div>
@@ -1417,8 +1657,14 @@ export default function AtlasApp() {
             <div>
               <span>Vent</span>
               <b>
-                {displayWindSpeed ?? "—"}<i>{windUnitLabel(windUnit)}</i>
-                {weather && <IconArrowUp className="atlas-weather-card__wind-arrow" style={{ transform: `rotate(${Math.round(weather.windDirection) + 180}deg)` }} />}
+                {displayWindSpeed ?? "—"}
+                <i>{windUnitLabel(windUnit)}</i>
+                {weather && (
+                  <IconArrowUp
+                    className="atlas-weather-card__wind-arrow"
+                    style={{ transform: `rotate(${Math.round(weather.windDirection) + 180}deg)` }}
+                  />
+                )}
               </b>
             </div>
           </div>
@@ -1426,41 +1672,103 @@ export default function AtlasApp() {
             <IconDroplet className="atlas-weather-card__stat-icon" />
             <div>
               <span>Pluie</span>
-              <b>{weather ? weather.precipitation.toFixed(1) : "—"}<i>mm/h</i></b>
+              <b>
+                {weather ? weather.precipitation.toFixed(1) : "—"}
+                <i>mm/h</i>
+              </b>
             </div>
           </div>
           <div>
             <IconDroplets className="atlas-weather-card__stat-icon" />
             <div>
               <span>Humidité</span>
-              <b>{weather ? Math.round(weather.humidity) : "—"}<i>%</i></b>
+              <b>
+                {weather ? Math.round(weather.humidity) : "—"}
+                <i>%</i>
+              </b>
             </div>
           </div>
         </div>
       </section>
 
       <section className="atlas-layers">
-        <div className="atlas-layers__title"><span>Couches</span><small><i />Direct</small></div>
-        <button className={radarVisible ? "is-active" : ""} onClick={() => updateLocalPreferences({ radarVisible: !radarVisible })} title={radarPanelStatus} aria-label="Afficher le radar OPERA" aria-pressed={radarVisible}>
-          <span className="atlas-layers__icon atlas-layers__icon--radar"><IconRadar /></span>
-          <span className="atlas-layers__copy"><b>Radar OPERA</b><small>{operaLayerDetail}</small></span>
+        <div className="atlas-layers__title">
+          <span>Couches</span>
+          <small>
+            <i />
+            Direct
+          </small>
+        </div>
+        <button
+          className={radarVisible ? "is-active" : ""}
+          onClick={() => updateLocalPreferences({ radarVisible: !radarVisible })}
+          title={radarPanelStatus}
+          aria-label={`Afficher le radar ${activeRadarSourceLabel}`}
+          aria-pressed={radarVisible}
+        >
+          <span className="atlas-layers__icon atlas-layers__icon--radar">
+            <IconRadar />
+          </span>
+          <span className="atlas-layers__copy">
+            <b>Radar {activeRadarSourceLabel}</b>
+            <small>{operaLayerDetail}</small>
+          </span>
         </button>
         <button onClick={() => showToast("La couche vent arrive bientôt.")} aria-label="Couche vent">
-          <span className="atlas-layers__icon"><IconWind /></span><span className="atlas-layers__copy"><b>Vent</b></span>
+          <span className="atlas-layers__icon">
+            <IconWind />
+          </span>
+          <span className="atlas-layers__copy">
+            <b>Vent</b>
+          </span>
         </button>
         <button onClick={() => showToast("La couche température arrive bientôt.")} aria-label="Couche température">
-          <span className="atlas-layers__icon"><IconThermometer /></span><span className="atlas-layers__copy"><b>Température</b></span>
+          <span className="atlas-layers__icon">
+            <IconThermometer />
+          </span>
+          <span className="atlas-layers__copy">
+            <b>Température</b>
+          </span>
         </button>
-        <button className={observationsVisible ? "is-active" : ""} onClick={() => updateLocalPreferences({ observationsVisible: !observationsVisible })} aria-label="Afficher les observations" aria-pressed={observationsVisible}>
-          <span className="atlas-layers__icon"><IconCloud /></span><span className="atlas-layers__copy"><b>Observations</b></span>{observationsVisible && <i />}
+        <button
+          className={observationsVisible ? "is-active" : ""}
+          onClick={() => updateLocalPreferences({ observationsVisible: !observationsVisible })}
+          aria-label="Afficher les observations"
+          aria-pressed={observationsVisible}
+        >
+          <span className="atlas-layers__icon">
+            <IconCloud />
+          </span>
+          <span className="atlas-layers__copy">
+            <b>Observations</b>
+          </span>
+          {observationsVisible && <i />}
         </button>
         {moreLayersOpen && (
           <>
-            <button className="is-disabled" onClick={() => showToast("Flux local désactivé tant qu’une vraie grille vectorielle n’est pas branchée.")}>
-              <span className="atlas-layers__icon"><IconWind /></span><span className="atlas-layers__copy"><b>Flux local</b></span><em>Bientôt</em>
+            <button
+              className="is-disabled"
+              onClick={() => showToast("Flux local désactivé tant qu’une vraie grille vectorielle n’est pas branchée.")}
+            >
+              <span className="atlas-layers__icon">
+                <IconWind />
+              </span>
+              <span className="atlas-layers__copy">
+                <b>Flux local</b>
+              </span>
+              <em>Bientôt</em>
             </button>
-            <button className="is-disabled" onClick={() => showToast("Température, nuages et qualité de l’air arrivent dans les couches suivantes.")}>
-              <span className="atlas-layers__icon"><IconDroplet /></span><span className="atlas-layers__copy"><b>Qualité de l’air</b></span><em>Bientôt</em>
+            <button
+              className="is-disabled"
+              onClick={() => showToast("Température, nuages et qualité de l’air arrivent dans les couches suivantes.")}
+            >
+              <span className="atlas-layers__icon">
+                <IconDroplet />
+              </span>
+              <span className="atlas-layers__copy">
+                <b>Qualité de l’air</b>
+              </span>
+              <em>Bientôt</em>
             </button>
           </>
         )}
@@ -1469,34 +1777,73 @@ export default function AtlasApp() {
           onClick={() => setMoreLayersOpen((value) => !value)}
           aria-expanded={moreLayersOpen}
         >
-          <b>Plus de couches</b><IconChevronDown className="atlas-layers__chevron" />
+          <b>Plus de couches</b>
+          <IconChevronDown className="atlas-layers__chevron" />
         </button>
       </section>
 
       {observationsVisible && (
-        <NearbyObservations observations={visibleObservations} onSelect={focusObservation} onCreate={openObservationComposer} />
+        <NearbyObservations
+          observations={visibleObservations}
+          onSelect={focusObservation}
+          onCreate={openObservationComposer}
+        />
       )}
 
       {!moreLayersOpen && localCore.preferences.showLocalAlerts && <LocalAlerts alerts={localAlerts} />}
 
       <button className="atlas-report-fab" type="button" onClick={openObservationComposer}>
-        <span><IconPlus /></span>
+        <span>
+          <IconPlus />
+        </span>
         <b>Observer</b>
       </button>
 
       <section className="atlas-map-tools" aria-label="Contrôles de la carte">
-        <button className="atlas-map-tools__locate" onClick={() => mapRef.current?.flyTo({ center: [location.lon, location.lat], zoom: Math.max(mapRef.current.getZoom(), 8.45), essential: true })} title="Recentrer la carte" aria-label="Recentrer la carte"><IconNavigation /></button>
+        <button
+          className="atlas-map-tools__locate"
+          onClick={() =>
+            mapRef.current?.flyTo({
+              center: [location.lon, location.lat],
+              zoom: Math.max(mapRef.current.getZoom(), 8.45),
+              essential: true,
+            })
+          }
+          title="Recentrer la carte"
+          aria-label="Recentrer la carte"
+        >
+          <IconNavigation />
+        </button>
         <div className="atlas-map-tools__zoom">
-          <button onClick={() => mapRef.current?.zoomIn()} title="Zoomer" aria-label="Zoomer"><IconPlus /></button>
-          <button onClick={() => mapRef.current?.zoomOut()} title="Dézoomer" aria-label="Dézoomer"><IconMinus /></button>
+          <button onClick={() => mapRef.current?.zoomIn()} title="Zoomer" aria-label="Zoomer">
+            <IconPlus />
+          </button>
+          <button onClick={() => mapRef.current?.zoomOut()} title="Dézoomer" aria-label="Dézoomer">
+            <IconMinus />
+          </button>
         </div>
       </section>
 
-      <section className={`atlas-radar-legend${radarVisible ? "" : " is-hidden"}`} aria-label="Échelle de réflectivité radar">
-        <b>Réflectivité radar (dBZ)</b><div /><small><span>5.5</span><span>11</span><span>18</span><span>27</span><span>35</span><span>50+</span></small>
+      <section
+        className={`atlas-radar-legend${radarVisible ? "" : " is-hidden"}`}
+        aria-label="Échelle de réflectivité radar"
+      >
+        <b>Réflectivité radar (dBZ)</b>
+        <div />
+        <small>
+          <span>5.5</span>
+          <span>11</span>
+          <span>18</span>
+          <span>27</span>
+          <span>35</span>
+          <span>50+</span>
+        </small>
       </section>
 
-      <section className={`atlas-timeline atlas-timeline--v3${operaPlaying ? " is-playing" : ""}`} aria-label="Animation radar OPERA">
+      <section
+        className={`atlas-timeline atlas-timeline--v3${operaPlaying ? " is-playing" : ""}`}
+        aria-label={`Animation radar ${activeRadarSourceLabel}`}
+      >
         <button
           className="atlas-timeline__play"
           onClick={() => setOperaPlaying((value) => !value)}
@@ -1504,15 +1851,38 @@ export default function AtlasApp() {
           title={operaPlaying ? "Mettre en pause" : "Lire l'historique radar"}
           aria-label={operaPlaying ? "Mettre le radar en pause" : "Lire l'historique radar"}
           aria-pressed={operaPlaying}
-        >{operaPlaying ? <IconPause /> : <IconPlay />}</button>
+        >
+          {operaPlaying ? <IconPause /> : <IconPlay />}
+        </button>
         <div className="atlas-timeline__bar">
           <div className="atlas-timeline__identity">
-            <span className="atlas-timeline__radar-icon"><IconRadar /></span>
-            <span><b>OPERA</b><small>{operaBufferStatus}</small></span>
+            <span className="atlas-timeline__radar-icon">
+              <IconRadar />
+            </span>
+            <span>
+              <b>{activeRadarSourceLabel}</b>
+              <small>{operaBufferStatus}</small>
+            </span>
           </div>
           <div className="atlas-timeline__steps" aria-label="Navigation des scans OPERA">
-            <button className="atlas-timeline__step" onClick={() => goToOperaAdjacent(-1)} disabled={!operaCanStep} title="Scan précédent" aria-label="Scan précédent"><IconSkipBack /></button>
-            <button className="atlas-timeline__step" onClick={() => goToOperaAdjacent(1)} disabled={!operaCanStep} title="Scan suivant" aria-label="Scan suivant"><IconSkipForward /></button>
+            <button
+              className="atlas-timeline__step"
+              onClick={() => goToOperaAdjacent(-1)}
+              disabled={!operaCanStep}
+              title="Scan précédent"
+              aria-label="Scan précédent"
+            >
+              <IconSkipBack />
+            </button>
+            <button
+              className="atlas-timeline__step"
+              onClick={() => goToOperaAdjacent(1)}
+              disabled={!operaCanStep}
+              title="Scan suivant"
+              aria-label="Scan suivant"
+            >
+              <IconSkipForward />
+            </button>
           </div>
           <div className="atlas-timeline__track-zone">
             <div
@@ -1527,15 +1897,18 @@ export default function AtlasApp() {
               <i style={{ width: `${Math.max(0, Math.min(100, operaTimelineProgress))}%` }} />
               <div className="atlas-timeline__dots" aria-hidden="true">
                 {Array.from({ length: OPERA_FRAME_COUNT }, (_, index) => {
-                  const mappedIndex = OPERA_FRAME_COUNT > 1 && operaTimelineMax > 0
-                    ? Math.round((index / (OPERA_FRAME_COUNT - 1)) * operaTimelineMax)
-                    : 0;
+                  const mappedIndex =
+                    OPERA_FRAME_COUNT > 1 && operaTimelineMax > 0
+                      ? Math.round((index / (OPERA_FRAME_COUNT - 1)) * operaTimelineMax)
+                      : 0;
                   const timestamp = operaHistoryFrames[mappedIndex]?.timestamp;
                   const className = [
                     operaCanUseHistory && mappedIndex === operaFrameIndex ? "is-active" : "",
                     timestamp && operaWarmedSet.has(timestamp) ? "is-ready" : "",
                     timestamp && !operaWarmedSet.has(timestamp) ? "is-buffering" : "",
-                  ].filter(Boolean).join(" ");
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return <span key={index} className={className} />;
                 })}
               </div>
@@ -1552,8 +1925,12 @@ export default function AtlasApp() {
               />
               <span
                 className="atlas-timeline__bubble"
-                style={{ left: `clamp(29px, ${Math.max(0, Math.min(100, operaTimelineProgress))}%, calc(100% - 29px))` }}
-              >{operaDisplayTime}</span>
+                style={{
+                  left: `clamp(29px, ${Math.max(0, Math.min(100, operaTimelineProgress))}%, calc(100% - 29px))`,
+                }}
+              >
+                {operaDisplayTime}
+              </span>
             </div>
             <div className="atlas-timeline__labels">
               {operaCanUseHistory ? (
@@ -1568,7 +1945,15 @@ export default function AtlasApp() {
             </div>
           </div>
           <div className="atlas-timeline__controls">
-            <button className="atlas-timeline__latest" onClick={goToLatestOperaFrame} disabled={!operaCanStep} title="Revenir au dernier scan"><i />Live</button>
+            <button
+              className="atlas-timeline__latest"
+              onClick={goToLatestOperaFrame}
+              disabled={!operaCanStep}
+              title="Revenir au dernier scan"
+            >
+              <i />
+              Live
+            </button>
             <button
               className={`atlas-timeline__loop${operaLoopEnabled ? " is-active" : ""}`}
               onClick={() => updateLocalPreferences({ radarLoop: !operaLoopEnabled })}
@@ -1576,7 +1961,9 @@ export default function AtlasApp() {
               aria-pressed={operaLoopEnabled}
               title="Lecture en boucle"
               aria-label="Lecture en boucle"
-            ><IconRepeat /></button>
+            >
+              <IconRepeat />
+            </button>
             <div className="atlas-timeline__speed" aria-label="Vitesse de lecture OPERA">
               {([0.5, 1, 2] as const).map((speed) => (
                 <button
@@ -1585,32 +1972,54 @@ export default function AtlasApp() {
                   onClick={() => updateLocalPreferences({ radarSpeed: speed })}
                   disabled={!operaCanStep}
                   aria-pressed={operaPlaybackSpeed === speed}
-                >{speed}x</button>
+                >
+                  {speed}x
+                </button>
               ))}
             </div>
-            <button className="atlas-timeline__fullscreen" onClick={toggleFullscreen} title="Plein écran" aria-label="Plein écran"><IconMaximize /></button>
+            <button
+              className="atlas-timeline__fullscreen"
+              onClick={toggleFullscreen}
+              title="Plein écran"
+              aria-label="Plein écran"
+            >
+              <IconMaximize />
+            </button>
           </div>
         </div>
       </section>
 
       {mobileLayersOpen && (
-        <button className="atlas-mobile-panel-backdrop" type="button" onClick={() => setMobileLayersOpen(false)} aria-label="Fermer les couches" />
+        <button
+          className="atlas-mobile-panel-backdrop"
+          type="button"
+          onClick={() => setMobileLayersOpen(false)}
+          aria-label="Fermer les couches"
+        />
       )}
       <nav className="atlas-mobile-nav" aria-label="Actions principales">
         <button type="button" onClick={() => navigateProductSpace("home")}>
-          <IconHome /><span>Maintenant</span>
+          <IconHome />
+          <span>Maintenant</span>
         </button>
         <button type="button" className="is-active" onClick={closeProductWorkspace} aria-current="page">
-          <IconRadar /><span>Carte</span>
+          <IconRadar />
+          <span>Carte</span>
         </button>
         <button type="button" onClick={() => navigateProductSpace("communities")}>
-          <IconUsers /><span>Territoires</span>
+          <IconUsers />
+          <span>Territoires</span>
         </button>
         <button type="button" onClick={() => navigateProductSpace("messages")}>
-          <span className="atlas-mobile-nav__icon-with-badge"><IconCloud />{unreadActivityCount > 0 && <i>{Math.min(99, unreadActivityCount)}</i>}</span><span>Échanges</span>
+          <span className="atlas-mobile-nav__icon-with-badge">
+            <IconCloud />
+            {unreadActivityCount > 0 && <i>{Math.min(99, unreadActivityCount)}</i>}
+          </span>
+          <span>Échanges</span>
         </button>
         <button type="button" onClick={() => navigateProductSpace("profile")}>
-          <IconUser /><span>Moi</span>
+          <IconUser />
+          <span>Moi</span>
         </button>
       </nav>
 
@@ -1644,7 +2053,10 @@ export default function AtlasApp() {
         onOpenMap={openMapFromWorkspace}
         onOpenObservation={openObservationFromWorkspace}
         onCreateObservation={openObservationComposer}
-        onLocate={() => { closeProductWorkspace(); window.setTimeout(useCurrentPosition, 80); }}
+        onLocate={() => {
+          closeProductWorkspace();
+          window.setTimeout(useCurrentPosition, 80);
+        }}
         onUpdateAtlasPreferences={updateLocalPreferences}
         onResetAtlasPreferences={resetLocalPreferences}
         onToast={showToast}
@@ -1654,8 +2066,12 @@ export default function AtlasApp() {
         observation={selectedWithLatestLike}
         confirmed={selectedWithLatestLike ? confirmedObservationIds.has(selectedWithLatestLike.id) : false}
         onClose={() => setSelectedObservation(null)}
-        onConfirm={(observation) => { void handleConfirmObservation(observation); }}
-        onShare={(observation) => { void shareObservation(observation); }}
+        onConfirm={(observation) => {
+          void handleConfirmObservation(observation);
+        }}
+        onShare={(observation) => {
+          void shareObservation(observation);
+        }}
         onToast={showToast}
       />
       <ObservationDrawer

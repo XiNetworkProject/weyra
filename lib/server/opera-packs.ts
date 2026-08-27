@@ -2,30 +2,39 @@ import "server-only";
 
 import { copyFile, link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "fs/promises";
 import path from "path";
+import type { RadarMaintenanceState, RadarMaintenancePhase } from "@/lib/radar-health";
+import {
+  listCachedMeteoFranceFrames,
+  prepareMeteoFranceRadarFrames,
+  type MeteoFrancePreparedFrame,
+} from "@/lib/server/meteofrance-radar-ingest";
+import { logRadarEvent } from "@/lib/server/radar-observability";
+import { readRadarMaintenanceState, writeRadarMaintenanceState } from "@/lib/server/radar-health-store";
 import {
   getCachedRenderedOperaFrame,
+  invalidateOperaTileCache,
   normalizeOperaTimestamp,
   operaCacheKey,
   operaCachedTileImagePath,
   operaOverviewTileJobsForBounds,
-  operaSourceGridPath,
   prepareOperaFrames,
   runOperaOverviewTileBatch,
   TILE_RENDER_VERSION,
   type OperaOverviewTileJob,
+  type OperaRenderedFrame,
   type OperaTilePrewarmResult,
 } from "@/lib/server/opera-render";
 import { RADAR_CACHE_ROOT, readBoundedPositiveIntEnv } from "@/lib/server/radar-config";
 
 // Scan packs: pre-published, fully static radar tile sets. A pack becomes "ready" only once
-// every required overview tile (z3..z6 over the OPERA Europe extent) exists on disk, so Atlas
+// every required overview tile (z3..z6 over the source extent) exists on disk, so Atlas
 // can always paint the radar instantly from static files — no Python, no MeteoGate on any GET.
 //
 // PRODUCTION NOTE: ensureRadarScanPacks() must run in a permanent worker/cron (every 1-2 min).
 // Locally it runs at server startup (instrumentation.ts) and via POST /api/radar/opera/packs/maintenance.
 
 const FRAMES_DIR = path.join(RADAR_CACHE_ROOT, "frames");
-export const PACKS_VERSION = "v3";
+export const PACKS_VERSION = "v5";
 const PACKS_ROOT = path.join(RADAR_CACHE_ROOT, "packs", PACKS_VERSION);
 const BUILDING_DIR_NAME = ".building";
 const BUILDING_ROOT = path.join(PACKS_ROOT, BUILDING_DIR_NAME);
@@ -43,6 +52,7 @@ const MAX_CONCURRENT_PACK_BUILDS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CO
 const STALE_BUILD_DIR_MS = 60 * 60_000;
 
 export type ScanPackCoverage = { west: number; south: number; east: number; north: number };
+export type RadarPackProvider = "Météo-France" | "EUMETNET OPERA";
 
 export type ScanPackManifest = {
   timestamp: string;
@@ -58,24 +68,35 @@ export type ScanPackManifest = {
   baseTileCount: number;
   detailTileCount: number;
   coverage: ScanPackCoverage | null;
+  provider: RadarPackProvider;
+  attribution: string;
+  sourceProduct: string;
+  sourceFormat: string;
+  nativeResolutionMeters: number | null;
+  displayFilter: string | null;
+  rainProbabilityThreshold: number | null;
   packBytes?: number;
   buildDurationMs?: number;
   error?: string;
 };
 
-export type ScanPackMaintenanceSnapshot = {
-  running: boolean;
-  startedAt: string | null;
-  finishedAt: string | null;
-  scansDetected: number;
-  packsReady: number;
-  building: string[];
-  errors: Array<{ timestamp: string; error: string }>;
-  note: string;
+type RadarPackSourceFrame = {
+  timestamp: string;
+  provider: RadarPackProvider;
+  attribution: string;
+  sourceProduct: string;
+  sourceFormat: string;
+  nativeResolutionMeters: number | null;
+  displayFilter: string | null;
+  rainProbabilityThreshold: number | null;
+  sourceGridPath: string;
+  coverage: ScanPackCoverage;
 };
 
+export type ScanPackMaintenanceSnapshot = RadarMaintenanceState;
+
 type OperaPackRuntimeState = {
-  buildInFlight: Map<string, Promise<ScanPackManifest | null>>;
+  buildInFlight: Map<string, Promise<ScanPackManifest>>;
   maintenanceTask: Promise<void> | null;
   maintenanceSnapshot: ScanPackMaintenanceSnapshot;
 };
@@ -83,24 +104,59 @@ type OperaPackRuntimeState = {
 const globalForOperaPacks = globalThis as typeof globalThis & {
   __weyraOperaPackRuntime?: OperaPackRuntimeState;
 };
-const runtimeState = globalForOperaPacks.__weyraOperaPackRuntime ??= {
-  buildInFlight: new Map<string, Promise<ScanPackManifest | null>>(),
+const runtimeState = (globalForOperaPacks.__weyraOperaPackRuntime ??= {
+  buildInFlight: new Map<string, Promise<ScanPackManifest>>(),
   maintenanceTask: null,
   maintenanceSnapshot: {
+    schemaVersion: 1,
     running: false,
+    phase: "idle",
     startedAt: null,
     finishedAt: null,
+    updatedAt: new Date().toISOString(),
+    cycleDurationMs: null,
     scansDetected: 0,
     packsReady: 0,
     building: [],
     errors: [],
     note: "En production, ce mécanisme doit tourner dans un worker/cron permanent.",
+    latestSourceTimestamp: null,
+    newestPackTimestamp: null,
+    latestPackPublishedAt: null,
+    lastPackBuildDurationMs: null,
+    lastSuccessfulPackAt: null,
   },
-};
+});
 const buildInFlight = runtimeState.buildInFlight;
 
 function nowIso() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+async function persistMaintenanceSnapshot(phase?: RadarMaintenancePhase) {
+  if (phase) runtimeState.maintenanceSnapshot.phase = phase;
+  runtimeState.maintenanceSnapshot.updatedAt = nowIso();
+  try {
+    await writeRadarMaintenanceState(getScanPackMaintenanceStatus());
+  } catch (error) {
+    logRadarEvent("warn", "maintenance_status_write_failed", {
+      error: sanitizePackError(error),
+    });
+  }
+}
+
+async function hydrateMaintenanceHistory() {
+  const persisted = await readRadarMaintenanceState();
+  if (!persisted) return;
+
+  const snapshot = runtimeState.maintenanceSnapshot;
+  snapshot.scansDetected = Math.max(snapshot.scansDetected, persisted.scansDetected);
+  snapshot.packsReady = Math.max(snapshot.packsReady, persisted.packsReady);
+  snapshot.latestSourceTimestamp ??= persisted.latestSourceTimestamp;
+  snapshot.newestPackTimestamp ??= persisted.newestPackTimestamp;
+  snapshot.latestPackPublishedAt ??= persisted.latestPackPublishedAt;
+  snapshot.lastPackBuildDurationMs ??= persisted.lastPackBuildDurationMs;
+  snapshot.lastSuccessfulPackAt ??= persisted.lastSuccessfulPackAt;
 }
 
 function packDir(timestamp: string) {
@@ -120,7 +176,7 @@ export function packDetailTilePath(timestamp: string, z: number, x: number, y: n
 }
 
 // Files prewarmed for a viewport are mirrored into their scan pack
-// (packs/v3/<timestamp>/detail/<z>/<x>/<y>.webp), so the pack directory carries the full radar
+// (packs/<version>/<timestamp>/detail/<z>/<x>/<y>.webp), so the pack directory carries the full radar
 // payload of its scan and detail GETs are plain static reads. Hardlink when the filesystem
 // allows it, plain copy otherwise. Best-effort: a mirror failure never fails the prewarm.
 export async function mirrorPrewarmedDetailTilesIntoPacks(result: OperaTilePrewarmResult): Promise<void> {
@@ -134,7 +190,9 @@ export async function mirrorPrewarmedDetailTilesIntoPacks(result: OperaTilePrewa
     for (const tile of item.readyTiles ?? []) {
       if (tile.z < PACK_DETAIL_ZOOM_MIN || tile.z > PACK_DETAIL_ZOOM_MAX) continue;
       const target = packDetailTilePath(normalized, tile.z, tile.x, tile.y);
-      const alreadyMirrored = await stat(target).then(() => true).catch(() => false);
+      const alreadyMirrored = await stat(target)
+        .then(() => true)
+        .catch(() => false);
       if (alreadyMirrored) continue;
 
       const source = operaCachedTileImagePath(normalized, tile.z, tile.x, tile.y, PACK_STYLE);
@@ -176,9 +234,11 @@ export async function getScanPackManifest(timestamp: string): Promise<ScanPackMa
 export async function listScanPacks(): Promise<ScanPackManifest[]> {
   try {
     const entries = await readdir(PACKS_ROOT, { withFileTypes: true });
-    const manifests = await Promise.all(entries
-      .filter((entry) => entry.isDirectory() && entry.name !== BUILDING_DIR_NAME)
-      .map((entry) => readManifestFile(path.join(PACKS_ROOT, entry.name, "manifest.json"))));
+    const manifests = await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory() && entry.name !== BUILDING_DIR_NAME)
+        .map((entry) => readManifestFile(path.join(PACKS_ROOT, entry.name, "manifest.json"))),
+    );
 
     return manifests
       .filter((manifest): manifest is ScanPackManifest => manifest !== null)
@@ -190,18 +250,75 @@ export async function listScanPacks(): Promise<ScanPackManifest[]> {
 
 export async function listReadyScanPacks(): Promise<ScanPackManifest[]> {
   const packs = await listScanPacks();
-  return packs.filter((pack) => (
-    pack.status === "ready"
-    && pack.style === PACK_STYLE
-    && pack.packVersion === PACKS_VERSION
-    && pack.baseTileCount > 0
-    && pack.coverage
-  ));
+  return packs.filter(
+    (pack) =>
+      pack.status === "ready" &&
+      pack.style === PACK_STYLE &&
+      pack.packVersion === PACKS_VERSION &&
+      pack.baseTileCount > 0 &&
+      pack.coverage,
+  );
 }
 
-// Scans already rendered on disk (frame + source grid), without touching MeteoGate. This is what
-// makes cold starts work offline: packs can be rebuilt from the local frame cache alone.
-async function listCachedFrameTimestamps(): Promise<string[]> {
+function nativeOperaResolutionMeters(frame: OperaRenderedFrame) {
+  const pixelSize = frame.metadata.sourceGridPixelSize;
+  if (!pixelSize) return null;
+  const candidates = [Math.abs(pixelSize.x), Math.abs(pixelSize.y)].filter(Number.isFinite);
+  return candidates.length ? Math.max(...candidates) : null;
+}
+
+function operaFrameToPackSource(frame: OperaRenderedFrame): RadarPackSourceFrame | null {
+  const coverage = frame.metadata.geographicBounds ?? frame.metadata.bbox;
+  const sourceGridPath = frame.metadata.sourceGridPath;
+  if (!coverage || !sourceGridPath || frame.metadata.tileReady === false) return null;
+  return {
+    timestamp: frame.timestamp,
+    provider: "EUMETNET OPERA",
+    attribution: "Source : EUMETNET OPERA",
+    sourceProduct: "DBZH composite Europe",
+    sourceFormat: "ODIM HDF5",
+    nativeResolutionMeters: nativeOperaResolutionMeters(frame),
+    displayFilter: null,
+    rainProbabilityThreshold: null,
+    sourceGridPath,
+    coverage,
+  };
+}
+
+function meteoFranceFrameToPackSource(frame: MeteoFrancePreparedFrame): RadarPackSourceFrame {
+  return {
+    timestamp: frame.timestamp,
+    provider: "Météo-France",
+    attribution: frame.attribution,
+    sourceProduct: frame.metadata.product,
+    sourceFormat: frame.metadata.format,
+    nativeResolutionMeters: frame.metadata.nativeResolutionMeters,
+    displayFilter: frame.metadata.displayFilter,
+    rainProbabilityThreshold: frame.metadata.rainProbabilityDisplayThreshold,
+    sourceGridPath: frame.sourceGridPath,
+    coverage: frame.coverage,
+  };
+}
+
+function mergeSourceFrames(...groups: RadarPackSourceFrame[][]) {
+  const byTimestamp = new Map<string, RadarPackSourceFrame>();
+  for (const group of groups) {
+    for (const frame of group) {
+      const current = byTimestamp.get(frame.timestamp);
+      if (!current || frame.provider === "Météo-France") byTimestamp.set(frame.timestamp, frame);
+    }
+  }
+  return [...byTimestamp.values()].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+async function getCachedOperaSourceFrame(timestamp: string): Promise<RadarPackSourceFrame | null> {
+  const frame = await getCachedRenderedOperaFrame(timestamp);
+  return frame ? operaFrameToPackSource(frame) : null;
+}
+
+// Scans OPERA already rendered on disk, without touching MeteoGate. Météo-France uses its own
+// frame root and is merged below with priority on identical timestamps.
+async function listCachedOperaSourceFrames(): Promise<RadarPackSourceFrame[]> {
   try {
     const entries = await readdir(FRAMES_DIR, { withFileTypes: true });
     const timestamps: string[] = [];
@@ -221,7 +338,10 @@ async function listCachedFrameTimestamps(): Promise<string[]> {
       }
     }
 
-    return timestamps.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const frames = await Promise.all(timestamps.map(getCachedOperaSourceFrame));
+    return frames
+      .filter((frame): frame is RadarPackSourceFrame => frame !== null)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   } catch {
     return [];
   }
@@ -234,14 +354,16 @@ async function countExistingTiles(root: string, jobs: OperaOverviewTileJob[], st
 
   for (let index = 0; index < jobs.length; index += 64) {
     const batch = jobs.slice(index, index + 64);
-    const results = await Promise.all(batch.map(async (job) => {
-      const tilePath = path.join(root, "tiles", style, key, String(job.z), String(job.x), `${job.y}.webp`);
-      try {
-        return { job, stats: await stat(tilePath) };
-      } catch {
-        return { job, stats: null };
-      }
-    }));
+    const results = await Promise.all(
+      batch.map(async (job) => {
+        const tilePath = path.join(root, "tiles", style, key, String(job.z), String(job.x), `${job.y}.webp`);
+        try {
+          return { job, stats: await stat(tilePath) };
+        } catch {
+          return { job, stats: null };
+        }
+      }),
+    );
     for (const result of results) {
       if (result.stats) {
         count += 1;
@@ -255,41 +377,49 @@ async function countExistingTiles(root: string, jobs: OperaOverviewTileJob[], st
   return { count, bytes, missing };
 }
 
-async function buildScanPack(timestamp: string): Promise<ScanPackManifest | null> {
-  const normalized = normalizeOperaTimestamp(timestamp);
-  if (!normalized) return null;
+async function buildScanPack(sourceFrame: RadarPackSourceFrame): Promise<ScanPackManifest> {
+  const normalized = normalizeOperaTimestamp(sourceFrame.timestamp);
+  if (!normalized) throw new Error(`Invalid radar timestamp: ${sourceFrame.timestamp}`);
 
-  const existing = buildInFlight.get(normalized);
+  const lockKey = `${normalized}:${sourceFrame.provider}`;
+  const existing = buildInFlight.get(lockKey);
   if (existing) return existing;
 
-  const pending = buildScanPackInternal(normalized).finally(() => {
-    buildInFlight.delete(normalized);
+  const pending = buildScanPackInternal({ ...sourceFrame, timestamp: normalized }).finally(() => {
+    buildInFlight.delete(lockKey);
   });
-  buildInFlight.set(normalized, pending);
+  buildInFlight.set(lockKey, pending);
   return pending;
 }
 
-async function buildScanPackInternal(timestamp: string): Promise<ScanPackManifest | null> {
+async function buildScanPackInternal(sourceFrame: RadarPackSourceFrame): Promise<ScanPackManifest> {
   const startedAt = Date.now();
+  const timestamp = sourceFrame.timestamp;
   const key = operaCacheKey(timestamp);
 
   const published = await readManifestFile(packManifestPath(timestamp));
-  if (published?.status === "ready" && published.style === PACK_STYLE && published.baseTileCount > 0) {
+  if (
+    published?.status === "ready" &&
+    published.style === PACK_STYLE &&
+    published.packVersion === PACKS_VERSION &&
+    published.provider === sourceFrame.provider &&
+    published.baseTileCount > 0
+  ) {
     return published;
   }
 
-  const frame = await getCachedRenderedOperaFrame(timestamp);
-  if (!frame) return null;
-
-  const coverage = frame.metadata.geographicBounds ?? frame.metadata.bbox ?? null;
-  if (!coverage) return null;
-
-  const sourceGridPath = frame.metadata.sourceGridPath ?? operaSourceGridPath(timestamp);
-  const sourceGridExists = await stat(sourceGridPath).then(() => true).catch(() => false);
-  if (!sourceGridExists || frame.metadata.tileReady === false) return null;
+  const coverage = sourceFrame.coverage;
+  const sourceGridPath = sourceFrame.sourceGridPath;
+  const sourceGridExists = await stat(sourceGridPath)
+    .then(() => true)
+    .catch(() => false);
+  if (!sourceGridExists) throw new Error(`Rendered radar source grid is missing: ${sourceGridPath}`);
+  if (sourceFrame.provider === "Météo-France" && published?.provider !== "Météo-France") {
+    await invalidateOperaTileCache(timestamp, PACK_STYLE);
+  }
 
   const jobs = operaOverviewTileJobsForBounds(coverage, PACK_OVERVIEW_ZOOM_MIN, PACK_OVERVIEW_ZOOM_MAX);
-  if (!jobs.length) return null;
+  if (!jobs.length) throw new Error("Rendered radar coverage produced no overview tile jobs.");
 
   const buildRoot = path.join(BUILDING_ROOT, `${key}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -327,6 +457,13 @@ async function buildScanPackInternal(timestamp: string): Promise<ScanPackManifes
       baseTileCount: count,
       detailTileCount: 0,
       coverage,
+      provider: sourceFrame.provider,
+      attribution: sourceFrame.attribution,
+      sourceProduct: sourceFrame.sourceProduct,
+      sourceFormat: sourceFrame.sourceFormat,
+      nativeResolutionMeters: sourceFrame.nativeResolutionMeters,
+      displayFilter: sourceFrame.displayFilter,
+      rainProbabilityThreshold: sourceFrame.rainProbabilityThreshold,
       packBytes: bytes,
       buildDurationMs: Date.now() - startedAt,
     };
@@ -338,18 +475,42 @@ async function buildScanPackInternal(timestamp: string): Promise<ScanPackManifes
     await rm(finalDir, { recursive: true, force: true }).catch(() => undefined);
     await rename(stagedPackDir, finalDir);
 
-    console.info(`[radar pack] published timestamp=${timestamp} tiles=${count} bytes=${bytes} dur=${Date.now() - startedAt}ms`);
+    const buildDurationMs = Date.now() - startedAt;
+    runtimeState.maintenanceSnapshot.lastPackBuildDurationMs = buildDurationMs;
+    runtimeState.maintenanceSnapshot.lastSuccessfulPackAt = nowIso();
+    if (
+      !runtimeState.maintenanceSnapshot.newestPackTimestamp ||
+      new Date(timestamp).getTime() >= new Date(runtimeState.maintenanceSnapshot.newestPackTimestamp).getTime()
+    ) {
+      runtimeState.maintenanceSnapshot.newestPackTimestamp = timestamp;
+      runtimeState.maintenanceSnapshot.latestPackPublishedAt = manifest.publishedAt;
+    }
+    await persistMaintenanceSnapshot();
+    logRadarEvent("info", "pack_published", {
+      timestamp,
+      provider: sourceFrame.provider,
+      tiles: count,
+      bytes,
+      durationMs: buildDurationMs,
+    });
     return manifest;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // Self-heal: a truncated/corrupt source-grid.tif (e.g. a frame interrupted mid-write) can
     // never produce a pack. Quarantining the frame lets the next maintenance pass re-download
     // and re-render it through the normal frame pipeline.
-    if (/read failed|not recognized as a supported file format|corrupt/i.test(message)) {
+    if (
+      sourceFrame.provider === "EUMETNET OPERA" &&
+      /read failed|not recognized as a supported file format|corrupt/i.test(message)
+    ) {
       await rm(path.join(FRAMES_DIR, key), { recursive: true, force: true }).catch(() => undefined);
-      console.warn(`[radar pack] quarantined corrupt frame timestamp=${timestamp}`);
+      logRadarEvent("warn", "corrupt_frame_quarantined", { timestamp });
     }
-    console.warn(`[radar pack] build failed timestamp=${timestamp}: ${sanitizePackError(error)}`);
+    logRadarEvent("error", "pack_build_failed", {
+      timestamp,
+      provider: sourceFrame.provider,
+      error: sanitizePackError(error),
+    });
     throw error;
   } finally {
     await rm(buildRoot, { recursive: true, force: true }).catch(() => undefined);
@@ -386,19 +547,27 @@ async function pruneScanPacks() {
   }
 }
 
-async function buildPacksForTimestamps(timestamps: string[], errors: Array<{ timestamp: string; error: string }>) {
+async function buildPacksForFrames(
+  frames: RadarPackSourceFrame[],
+  errors: Array<{ timestamp: string; error: string }>,
+) {
   // Newest scans first: the frame Atlas shows immediately is always the first one repaired.
-  const queue = [...timestamps].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  const queue = [...frames].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   let cursor = 0;
 
-  async function processTimestamp(timestamp: string) {
+  async function processFrame(frame: RadarPackSourceFrame) {
+    const timestamp = frame.timestamp;
     runtimeState.maintenanceSnapshot.building = [...new Set([...runtimeState.maintenanceSnapshot.building, timestamp])];
+    await persistMaintenanceSnapshot();
     try {
-      await buildScanPack(timestamp);
+      await buildScanPack(frame);
     } catch (error) {
       errors.push({ timestamp, error: sanitizePackError(error) });
     } finally {
-      runtimeState.maintenanceSnapshot.building = runtimeState.maintenanceSnapshot.building.filter((item) => item !== timestamp);
+      runtimeState.maintenanceSnapshot.building = runtimeState.maintenanceSnapshot.building.filter(
+        (item) => item !== timestamp,
+      );
+      await persistMaintenanceSnapshot();
     }
   }
 
@@ -407,57 +576,136 @@ async function buildPacksForTimestamps(timestamps: string[], errors: Array<{ tim
   const newest = queue[cursor];
   if (newest) {
     cursor += 1;
-    await processTimestamp(newest);
+    await processFrame(newest);
   }
 
   async function worker() {
     while (cursor < queue.length) {
-      const timestamp = queue[cursor];
+      const frame = queue[cursor];
       cursor += 1;
-      if (!timestamp) continue;
+      if (!frame) continue;
 
-      await processTimestamp(timestamp);
+      await processFrame(frame);
     }
   }
 
-  const workers = Array.from(
-    { length: Math.min(MAX_CONCURRENT_PACK_BUILDS, queue.length) },
-    () => worker(),
-  );
+  const workers = Array.from({ length: Math.min(MAX_CONCURRENT_PACK_BUILDS, queue.length) }, () => worker());
   await Promise.all(workers);
 }
 
 async function runScanPackMaintenance() {
+  const cycleStartedAt = Date.now();
   const errors: Array<{ timestamp: string; error: string }> = [];
+  await hydrateMaintenanceHistory();
 
-  // Phase 1 — no network: publish packs for every scan already rendered on disk. This is what
-  // guarantees a ready pack exists as fast as possible after a cold start.
-  const cachedTimestamps = (await listCachedFrameTimestamps()).slice(-MAX_KEPT_PACKS);
-  runtimeState.maintenanceSnapshot.scansDetected = cachedTimestamps.length;
-  await buildPacksForTimestamps(cachedTimestamps, errors);
+  // Make the newest cached frame available immediately, even if both upstream APIs are down.
+  // Météo-France wins when both providers expose the same 5-minute timestamp.
+  const cachedMeteoFranceFrames = (await listCachedMeteoFranceFrames()).map(meteoFranceFrameToPackSource);
+  const cachedOperaFrames = await listCachedOperaSourceFrames();
+  const cachedFrames = mergeSourceFrames(cachedOperaFrames, cachedMeteoFranceFrames).slice(-MAX_KEPT_PACKS);
+  runtimeState.maintenanceSnapshot.scansDetected = cachedFrames.length;
+  await persistMaintenanceSnapshot("cached-live");
+  await buildPacksForFrames(cachedFrames.slice(-1), errors);
   runtimeState.maintenanceSnapshot.packsReady = (await listReadyScanPacks()).length;
 
-  // Phase 2 — network: discover/render the latest 12 OPERA scans (MeteoGate + HDF5 + frame
-  // renderer, all existing code), then publish packs for any new scan.
+  // France is sourced from the official Météo-France 1 km / 5 min reflectivity mosaic.
+  // OPERA remains active for European coverage, history backfill and upstream fallback.
+  let refreshedMeteoFranceFrames: RadarPackSourceFrame[] = cachedMeteoFranceFrames;
+  await persistMaintenanceSnapshot("discovering");
+  const meteoFrance = await prepareMeteoFranceRadarFrames();
+  refreshedMeteoFranceFrames = meteoFrance.frames.map(meteoFranceFrameToPackSource);
+  if (meteoFrance.latestTimestamp) {
+    runtimeState.maintenanceSnapshot.latestSourceTimestamp = meteoFrance.latestTimestamp;
+  }
+  if (!meteoFrance.ok && meteoFrance.error) {
+    errors.push({ timestamp: "meteofrance", error: sanitizePackError(meteoFrance.error) });
+  }
+  await persistMaintenanceSnapshot("publishing-live");
+  await buildPacksForFrames(refreshedMeteoFranceFrames.slice(-1), errors);
+
+  let readyOperaTimestamps: string[] = [];
+  await persistMaintenanceSnapshot("discovering");
   try {
-    const manifest = await prepareOperaFrames(TARGET_SCAN_COUNT);
-    const readyTimestamps = manifest.frames
-      .filter((item) => item.status === "ready")
-      .map((item) => item.timestamp);
-    runtimeState.maintenanceSnapshot.scansDetected = Math.max(runtimeState.maintenanceSnapshot.scansDetected, manifest.availableCount);
-    await buildPacksForTimestamps(readyTimestamps, errors);
+    const manifest = await prepareOperaFrames(TARGET_SCAN_COUNT, {
+      onDiscovered: async ({ availableCount, latestTimestamp }) => {
+        runtimeState.maintenanceSnapshot.scansDetected = Math.max(
+          runtimeState.maintenanceSnapshot.scansDetected,
+          availableCount,
+        );
+        if (
+          latestTimestamp &&
+          (!runtimeState.maintenanceSnapshot.latestSourceTimestamp ||
+            new Date(latestTimestamp).getTime() >
+              new Date(runtimeState.maintenanceSnapshot.latestSourceTimestamp).getTime())
+        ) {
+          runtimeState.maintenanceSnapshot.latestSourceTimestamp = latestTimestamp;
+        }
+        await persistMaintenanceSnapshot("rendering-history");
+      },
+      onLatestReady: async (timestamp) => {
+        if (
+          !runtimeState.maintenanceSnapshot.latestSourceTimestamp ||
+          new Date(timestamp).getTime() > new Date(runtimeState.maintenanceSnapshot.latestSourceTimestamp).getTime()
+        ) {
+          runtimeState.maintenanceSnapshot.latestSourceTimestamp = timestamp;
+        }
+        await persistMaintenanceSnapshot("publishing-live");
+        const meteoFranceFrame = refreshedMeteoFranceFrames.find((frame) => frame.timestamp === timestamp);
+        const operaFrame = meteoFranceFrame ? null : await getCachedOperaSourceFrame(timestamp);
+        await buildPacksForFrames(
+          [meteoFranceFrame ?? operaFrame].filter((frame): frame is RadarPackSourceFrame => Boolean(frame)),
+          errors,
+        );
+        await persistMaintenanceSnapshot("rendering-history");
+      },
+    });
+    readyOperaTimestamps = manifest.frames.filter((item) => item.status === "ready").map((item) => item.timestamp);
+    runtimeState.maintenanceSnapshot.scansDetected = Math.max(
+      runtimeState.maintenanceSnapshot.scansDetected,
+      manifest.availableCount,
+    );
+    errors.push(
+      ...manifest.errors.map((item) => ({
+        timestamp: item.timestamp,
+        error: sanitizePackError(item.error),
+      })),
+    );
+    if (!manifest.ok && manifest.error) {
+      errors.push({ timestamp: "discovery", error: sanitizePackError(manifest.error) });
+    }
   } catch (error) {
     errors.push({ timestamp: "discovery", error: sanitizePackError(error) });
   }
 
+  await persistMaintenanceSnapshot("publishing-history");
+  const readyOperaFrames = (await Promise.all(readyOperaTimestamps.map(getCachedOperaSourceFrame))).filter(
+    (frame): frame is RadarPackSourceFrame => frame !== null,
+  );
+  const allFrames = mergeSourceFrames(cachedOperaFrames, readyOperaFrames, refreshedMeteoFranceFrames).slice(
+    -MAX_KEPT_PACKS,
+  );
+  runtimeState.maintenanceSnapshot.scansDetected = allFrames.length;
+  await buildPacksForFrames(allFrames, errors);
+
+  await persistMaintenanceSnapshot("pruning");
   await pruneScanPacks();
-  runtimeState.maintenanceSnapshot.packsReady = (await listReadyScanPacks()).length;
+  const packs = await listReadyScanPacks();
+  const newestPack = packs.at(-1) ?? null;
+  runtimeState.maintenanceSnapshot.packsReady = packs.length;
+  runtimeState.maintenanceSnapshot.newestPackTimestamp = newestPack?.timestamp ?? null;
+  runtimeState.maintenanceSnapshot.latestPackPublishedAt = newestPack?.publishedAt ?? null;
   runtimeState.maintenanceSnapshot.errors = errors.slice(0, 12);
+  runtimeState.maintenanceSnapshot.cycleDurationMs = Date.now() - cycleStartedAt;
+  await persistMaintenanceSnapshot("idle");
 }
 
 export function getScanPackMaintenanceStatus(): ScanPackMaintenanceSnapshot {
   const snapshot = runtimeState.maintenanceSnapshot;
   return { ...snapshot, building: [...snapshot.building], errors: [...snapshot.errors] };
+}
+
+export async function getPersistedScanPackMaintenanceStatus(): Promise<ScanPackMaintenanceSnapshot> {
+  return (await readRadarMaintenanceState()) ?? getScanPackMaintenanceStatus();
 }
 
 // Server-only entry point. Detects available scans and builds missing packs with bounded Python
@@ -470,21 +718,32 @@ export function ensureRadarScanPacks(): ScanPackMaintenanceSnapshot {
     runtimeState.maintenanceSnapshot = {
       ...runtimeState.maintenanceSnapshot,
       running: true,
+      phase: "cached-live",
       startedAt: nowIso(),
       finishedAt: null,
+      updatedAt: nowIso(),
+      cycleDurationMs: null,
       errors: [],
     };
     runtimeState.maintenanceTask = runScanPackMaintenance()
       .catch((error) => {
+        runtimeState.maintenanceSnapshot.phase = "failed";
         runtimeState.maintenanceSnapshot.errors = [
           ...runtimeState.maintenanceSnapshot.errors,
           { timestamp: "maintenance", error: sanitizePackError(error) },
         ];
+        logRadarEvent("error", "maintenance_cycle_failed", {
+          error: sanitizePackError(error),
+        });
       })
       .finally(() => {
         runtimeState.maintenanceSnapshot.running = false;
         runtimeState.maintenanceSnapshot.finishedAt = nowIso();
+        runtimeState.maintenanceSnapshot.cycleDurationMs = runtimeState.maintenanceSnapshot.startedAt
+          ? Date.now() - new Date(runtimeState.maintenanceSnapshot.startedAt).getTime()
+          : runtimeState.maintenanceSnapshot.cycleDurationMs;
         runtimeState.maintenanceTask = null;
+        void persistMaintenanceSnapshot(runtimeState.maintenanceSnapshot.phase === "failed" ? "failed" : "idle");
       });
   }
 

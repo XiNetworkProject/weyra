@@ -41,14 +41,8 @@ export default function ProfileView({
   onOpenMap,
   onToast,
 }: ProfileViewProps) {
-  const {
-    backend,
-    state,
-    updateProfile,
-    addNotebookEntry,
-    removeNotebookEntry,
-    togglePostBookmark,
-  } = useWeyraProduct();
+  const { backend, state, updateProfile, addNotebookEntry, removeNotebookEntry, togglePostBookmark } =
+    useWeyraProduct();
   const [tab, setTab] = useState<ProfileTab>("observations");
   const [editing, setEditing] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -61,11 +55,13 @@ export default function ProfileView({
     region: state.profile.region,
   }));
   const ownObservations = useMemo(
-    () => observations.filter((observation) => !observation.isSeed || observation.nickname === state.profile.displayName),
+    () =>
+      observations.filter((observation) => !observation.isSeed || observation.nickname === state.profile.displayName),
     [observations, state.profile.displayName],
   );
-  const savedPosts = [...state.remotePosts, ...PRODUCT_POSTS]
-    .filter((post) => state.bookmarkedPostIds.includes(post.id));
+  const savedPosts = [...state.remotePosts, ...PRODUCT_POSTS].filter((post) =>
+    state.bookmarkedPostIds.includes(post.id),
+  );
 
   useEffect(() => {
     if (editing) return;
@@ -83,10 +79,17 @@ export default function ProfileView({
     if (!displayName) return;
     updateProfile({
       displayName,
-      handle: profileDraft.handle.trim().startsWith("@") ? profileDraft.handle.trim() : `@${profileDraft.handle.trim()}`,
+      handle: profileDraft.handle.trim().startsWith("@")
+        ? profileDraft.handle.trim()
+        : `@${profileDraft.handle.trim()}`,
       bio: profileDraft.bio.trim(),
       region: profileDraft.region.trim(),
-      initials: displayName.split(/\s+/).map((word) => word[0]).join("").slice(0, 2).toUpperCase(),
+      initials: displayName
+        .split(/\s+/)
+        .map((word) => word[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
     });
     setEditing(false);
     onToast(backend.status === "authenticated" ? "Profil Weyra synchronisé." : "Profil local mis à jour.");
@@ -111,74 +114,151 @@ export default function ProfileView({
       <ProductSectionHeading
         eyebrow="Identité & mémoire"
         title="Mon espace Weyra"
-        copy={backend.status === "authenticated"
-          ? "Ton profil, tes préférences et ton carnet te suivent sur tous tes appareils."
-          : "Tes observations, lieux et apprentissages restent enregistrés sur cet appareil."}
+        copy={
+          backend.status === "authenticated"
+            ? "Ton profil, tes préférences et ton carnet te suivent sur tous tes appareils."
+            : "Tes observations, lieux et apprentissages restent enregistrés sur cet appareil."
+        }
         action={backend.status === "authenticated" ? undefined : <DemoNotice compact />}
       />
 
       <section className={`product-account-status is-${backend.status}`}>
-        <span><IconCheck /></span>
+        <span>
+          <IconCheck />
+        </span>
         <div>
-          <small>{backend.status === "authenticated" ? "Compte Weyra actif" : backend.status === "connecting" ? "Connexion en cours" : "Mode local"}</small>
-          <b>{backend.status === "authenticated" ? backend.email ?? state.profile.displayName : "Aucun compte connecté"}</b>
-          <p>{backend.status === "authenticated"
-            ? "Profil, réglages, alertes et carnet synchronisés avec Supabase."
-            : "La démonstration reste complète, mais ces données ne quittent pas cet appareil."}</p>
+          <small>
+            {backend.status === "authenticated"
+              ? "Compte Weyra actif"
+              : backend.status === "connecting"
+                ? "Connexion en cours"
+                : "Mode local"}
+          </small>
+          <b>
+            {backend.status === "authenticated"
+              ? (backend.email ?? state.profile.displayName)
+              : "Aucun compte connecté"}
+          </b>
+          <p>
+            {backend.status === "authenticated"
+              ? "Profil, réglages, alertes et carnet synchronisés avec Weyra."
+              : "La démonstration reste complète, mais ces données ne quittent pas cet appareil."}
+          </p>
         </div>
         {backend.status === "authenticated" ? (
           <form action="/auth/signout" method="post">
-            <button className="product-secondary-button" type="submit">Se déconnecter</button>
+            <button className="product-secondary-button" type="submit">
+              Se déconnecter
+            </button>
           </form>
         ) : (
-          <Link className="product-primary-button" href="/login?next=/?space=profile">Se connecter</Link>
+          <Link className="product-primary-button" href="/login?next=/?space=profile">
+            Se connecter
+          </Link>
         )}
       </section>
 
       <header className="product-profile-hero">
-        <div className="product-profile-hero__avatar" style={{ "--profile-accent": state.profile.accent } as never}>{state.profile.initials}</div>
+        <div className="product-profile-hero__avatar" style={{ "--profile-accent": state.profile.accent } as never}>
+          {state.profile.initials}
+        </div>
         <div className="product-profile-hero__identity">
           <span>{backend.status === "authenticated" ? "Profil synchronisé" : "Profil local"}</span>
           <h2>{state.profile.displayName}</h2>
-          <small>{state.profile.handle} · {state.profile.region}</small>
+          <small>
+            {state.profile.handle} · {state.profile.region}
+          </small>
           <p>{state.profile.bio}</p>
-          <div>{state.profile.interests.map((interest) => <span key={interest}>{CATEGORY_META[interest].shortLabel}</span>)}</div>
+          <div>
+            {state.profile.interests.map((interest) => (
+              <span key={interest}>{CATEGORY_META[interest].shortLabel}</span>
+            ))}
+          </div>
         </div>
-        <button className="product-secondary-button" onClick={() => setEditing(true)}><IconEdit />Modifier</button>
+        <button className="product-secondary-button" onClick={() => setEditing(true)}>
+          <IconEdit />
+          Modifier
+        </button>
         <div className="product-profile-hero__stats">
-          <span><b>{ownObservations.length}</b>observations locales</span>
-          <span><b>{state.profile.confirmedCount}</b>confirmations</span>
-          <span><b>{state.completedLessonIds.length}</b>fiches terminées</span>
+          <span>
+            <b>{ownObservations.length}</b>observations locales
+          </span>
+          <span>
+            <b>{state.profile.confirmedCount}</b>confirmations
+          </span>
+          <span>
+            <b>{state.completedLessonIds.length}</b>fiches terminées
+          </span>
         </div>
       </header>
 
       <section className="product-badges">
         <span>Reconnaissance</span>
         <div>
-          <article><i><IconStar /></i><p><b>Éclaireur local</b><small>Premiers signalements utiles</small></p></article>
-          <article><i><IconCheck /></i><p><b>Œil régulier</b><small>Observations réparties dans le temps</small></p></article>
-          <article className={state.completedLessonIds.length >= 3 ? "" : "is-locked"}><i><IconBook /></i><p><b>Curieux du ciel</b><small>Terminer trois fiches</small></p></article>
+          <article>
+            <i>
+              <IconStar />
+            </i>
+            <p>
+              <b>Éclaireur local</b>
+              <small>Premiers signalements utiles</small>
+            </p>
+          </article>
+          <article>
+            <i>
+              <IconCheck />
+            </i>
+            <p>
+              <b>Œil régulier</b>
+              <small>Observations réparties dans le temps</small>
+            </p>
+          </article>
+          <article className={state.completedLessonIds.length >= 3 ? "" : "is-locked"}>
+            <i>
+              <IconBook />
+            </i>
+            <p>
+              <b>Curieux du ciel</b>
+              <small>Terminer trois fiches</small>
+            </p>
+          </article>
         </div>
       </section>
 
       <div className="product-segmented">
-        <button className={tab === "observations" ? "is-active" : ""} onClick={() => setTab("observations")}>Observations</button>
-        <button className={tab === "notebook" ? "is-active" : ""} onClick={() => setTab("notebook")}>Carnet météo</button>
-        <button className={tab === "saved" ? "is-active" : ""} onClick={() => setTab("saved")}>Enregistrés</button>
+        <button className={tab === "observations" ? "is-active" : ""} onClick={() => setTab("observations")}>
+          Observations
+        </button>
+        <button className={tab === "notebook" ? "is-active" : ""} onClick={() => setTab("notebook")}>
+          Carnet météo
+        </button>
+        <button className={tab === "saved" ? "is-active" : ""} onClick={() => setTab("saved")}>
+          Enregistrés
+        </button>
       </div>
 
-      {tab === "observations" && (
-        ownObservations.length ? (
+      {tab === "observations" &&
+        (ownObservations.length ? (
           <div className="product-profile-grid">
             {ownObservations.map((observation) => (
               <article key={observation.id}>
                 {observation.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={observation.imageUrl} alt="" />
-                ) : <span className="product-profile-grid__placeholder">{CATEGORY_META[observation.category].shortLabel}</span>}
+                ) : (
+                  <span className="product-profile-grid__placeholder">
+                    {CATEGORY_META[observation.category].shortLabel}
+                  </span>
+                )}
                 <div>
-                  <small>{formatRelativeTime(observation.createdAt)} · {observation.place ?? "Zone locale"}</small>
-                  <h3>{observationPhenomena(observation).map((item) => CATEGORY_META[item].shortLabel).join(" · ")}</h3>
+                  <small>
+                    {formatRelativeTime(observation.createdAt)} · {observation.place ?? "Zone locale"}
+                  </small>
+                  <h3>
+                    {observationPhenomena(observation)
+                      .map((item) => CATEGORY_META[item].shortLabel)
+                      .join(" · ")}
+                  </h3>
                   <p>{observation.details || "Observation sans description."}</p>
                   <button onClick={() => onOpenObservation(observation.id)}>Ouvrir</button>
                 </div>
@@ -186,42 +266,94 @@ export default function ProfileView({
             ))}
           </div>
         ) : (
-          <ProductEmpty icon={<IconCompass />} title="Ton carnet de terrain commence ici" action={<button className="product-primary-button" onClick={onCreateObservation}><IconPlus />Créer une observation</button>}>
+          <ProductEmpty
+            icon={<IconCompass />}
+            title="Ton carnet de terrain commence ici"
+            action={
+              <button className="product-primary-button" onClick={onCreateObservation}>
+                <IconPlus />
+                Créer une observation
+              </button>
+            }
+          >
             Les observations publiées localement apparaîtront ici.
           </ProductEmpty>
-        )
-      )}
+        ))}
 
       {tab === "notebook" && (
         <section className="product-notebook">
-          <header><div><span>Notes personnelles</span><h3>Mon carnet météo</h3></div><button className="product-primary-button" onClick={() => setNoteOpen(true)}><IconPlus />Nouvelle note</button></header>
+          <header>
+            <div>
+              <span>Notes personnelles</span>
+              <h3>Mon carnet météo</h3>
+            </div>
+            <button className="product-primary-button" onClick={() => setNoteOpen(true)}>
+              <IconPlus />
+              Nouvelle note
+            </button>
+          </header>
           {state.notebookEntries.length ? (
             <div>
               {state.notebookEntries.map((entry) => (
                 <article key={entry.id}>
-                  <span><IconBook /></span>
-                  <div><small>{formatRelativeTime(entry.createdAt)} · {entry.place}</small><h3>{entry.title}</h3><p>{entry.note || "Note sans description."}</p></div>
-                  <button onClick={() => removeNotebookEntry(entry.id)} title="Supprimer la note" aria-label="Supprimer la note"><IconTrash /></button>
+                  <span>
+                    <IconBook />
+                  </span>
+                  <div>
+                    <small>
+                      {formatRelativeTime(entry.createdAt)} · {entry.place}
+                    </small>
+                    <h3>{entry.title}</h3>
+                    <p>{entry.note || "Note sans description."}</p>
+                  </div>
+                  <button
+                    onClick={() => removeNotebookEntry(entry.id)}
+                    title="Supprimer la note"
+                    aria-label="Supprimer la note"
+                  >
+                    <IconTrash />
+                  </button>
                 </article>
               ))}
             </div>
           ) : (
-            <ProductEmpty icon={<IconBook />} title="Aucune note personnelle" action={<button className="product-secondary-button" onClick={() => setNoteOpen(true)}>Écrire une note</button>}>
+            <ProductEmpty
+              icon={<IconBook />}
+              title="Aucune note personnelle"
+              action={
+                <button className="product-secondary-button" onClick={() => setNoteOpen(true)}>
+                  Écrire une note
+                </button>
+              }
+            >
               Conserve ici une impression, un lieu ou un souvenir météo.
             </ProductEmpty>
           )}
         </section>
       )}
 
-      {tab === "saved" && (
-        savedPosts.length ? (
+      {tab === "saved" &&
+        (savedPosts.length ? (
           <div className="product-saved-list">
             {savedPosts.map((post) => (
               <article key={post.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={post.imageUrl} alt="" />
-                <div><small>{post.place} · {formatRelativeTime(post.publishedAt)}</small><h3>{post.title}</h3><p>{post.body}</p></div>
-                <div><button onClick={() => onOpenMap(post.lat, post.lon)}><IconCompass /></button><button onClick={() => togglePostBookmark(post.id)}><IconBookmark /></button></div>
+                <div>
+                  <small>
+                    {post.place} · {formatRelativeTime(post.publishedAt)}
+                  </small>
+                  <h3>{post.title}</h3>
+                  <p>{post.body}</p>
+                </div>
+                <div>
+                  <button onClick={() => onOpenMap(post.lat, post.lon)}>
+                    <IconCompass />
+                  </button>
+                  <button onClick={() => togglePostBookmark(post.id)}>
+                    <IconBookmark />
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -229,19 +361,61 @@ export default function ProfileView({
           <ProductEmpty icon={<IconBookmark />} title="Rien d'enregistré">
             Utilise le marque-page dans le Flux pour retrouver un contenu ici.
           </ProductEmpty>
-        )
-      )}
+        ))}
 
       {editing && (
         <div className="product-modal-layer">
           <button className="product-modal-layer__backdrop" onClick={() => setEditing(false)} aria-label="Fermer" />
           <form className="product-modal" onSubmit={submitProfile}>
-            <header><div><span>Profil local</span><h2>Modifier mon profil</h2></div><button type="button" onClick={() => setEditing(false)}>Fermer</button></header>
-            <label>Nom affiché<input value={profileDraft.displayName} maxLength={32} onChange={(event) => setProfileDraft((current) => ({ ...current, displayName: event.target.value }))} /></label>
-            <label>Identifiant<input value={profileDraft.handle} maxLength={32} onChange={(event) => setProfileDraft((current) => ({ ...current, handle: event.target.value }))} /></label>
-            <label>Région<input value={profileDraft.region} maxLength={60} onChange={(event) => setProfileDraft((current) => ({ ...current, region: event.target.value }))} /></label>
-            <label>Bio<textarea value={profileDraft.bio} maxLength={240} onChange={(event) => setProfileDraft((current) => ({ ...current, bio: event.target.value }))} /></label>
-            <footer><button type="button" onClick={() => setEditing(false)}>Annuler</button><button className="product-primary-button" type="submit">Enregistrer</button></footer>
+            <header>
+              <div>
+                <span>Profil local</span>
+                <h2>Modifier mon profil</h2>
+              </div>
+              <button type="button" onClick={() => setEditing(false)}>
+                Fermer
+              </button>
+            </header>
+            <label>
+              Nom affiché
+              <input
+                value={profileDraft.displayName}
+                maxLength={32}
+                onChange={(event) => setProfileDraft((current) => ({ ...current, displayName: event.target.value }))}
+              />
+            </label>
+            <label>
+              Identifiant
+              <input
+                value={profileDraft.handle}
+                maxLength={32}
+                onChange={(event) => setProfileDraft((current) => ({ ...current, handle: event.target.value }))}
+              />
+            </label>
+            <label>
+              Région
+              <input
+                value={profileDraft.region}
+                maxLength={60}
+                onChange={(event) => setProfileDraft((current) => ({ ...current, region: event.target.value }))}
+              />
+            </label>
+            <label>
+              Bio
+              <textarea
+                value={profileDraft.bio}
+                maxLength={240}
+                onChange={(event) => setProfileDraft((current) => ({ ...current, bio: event.target.value }))}
+              />
+            </label>
+            <footer>
+              <button type="button" onClick={() => setEditing(false)}>
+                Annuler
+              </button>
+              <button className="product-primary-button" type="submit">
+                Enregistrer
+              </button>
+            </footer>
           </form>
         </div>
       )}
@@ -250,10 +424,42 @@ export default function ProfileView({
         <div className="product-modal-layer">
           <button className="product-modal-layer__backdrop" onClick={() => setNoteOpen(false)} aria-label="Fermer" />
           <form className="product-modal product-modal--note" onSubmit={submitNote}>
-            <header><div><span>Carnet météo</span><h2>Nouvelle note</h2></div><button type="button" onClick={() => setNoteOpen(false)}>Fermer</button></header>
-            <label>Titre<input value={noteTitle} maxLength={80} onChange={(event) => setNoteTitle(event.target.value)} placeholder="Ex. Le ciel avant l'averse" required /></label>
-            <label>Note<textarea value={noteBody} maxLength={600} onChange={(event) => setNoteBody(event.target.value)} placeholder="Ce que tu souhaites conserver…" /></label>
-            <footer><button type="button" onClick={() => setNoteOpen(false)}>Annuler</button><button className="product-primary-button" type="submit">Ajouter au carnet</button></footer>
+            <header>
+              <div>
+                <span>Carnet météo</span>
+                <h2>Nouvelle note</h2>
+              </div>
+              <button type="button" onClick={() => setNoteOpen(false)}>
+                Fermer
+              </button>
+            </header>
+            <label>
+              Titre
+              <input
+                value={noteTitle}
+                maxLength={80}
+                onChange={(event) => setNoteTitle(event.target.value)}
+                placeholder="Ex. Le ciel avant l'averse"
+                required
+              />
+            </label>
+            <label>
+              Note
+              <textarea
+                value={noteBody}
+                maxLength={600}
+                onChange={(event) => setNoteBody(event.target.value)}
+                placeholder="Ce que tu souhaites conserver…"
+              />
+            </label>
+            <footer>
+              <button type="button" onClick={() => setNoteOpen(false)}>
+                Annuler
+              </button>
+              <button className="product-primary-button" type="submit">
+                Ajouter au carnet
+              </button>
+            </footer>
           </form>
         </div>
       )}
