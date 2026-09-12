@@ -1,6 +1,6 @@
 const CACHE_PREFIX = "weyra-pwa";
-const STATIC_CACHE = `${CACHE_PREFIX}-static-v1`;
-const PAGE_CACHE = `${CACHE_PREFIX}-pages-v1`;
+const STATIC_CACHE = `${CACHE_PREFIX}-static-v2`;
+const PAGE_CACHE = `${CACHE_PREFIX}-pages-v2`;
 const PRECACHE = ["/offline", "/icon.svg"];
 const MAX_PAGE_ENTRIES = 12;
 let lowBandwidth = false;

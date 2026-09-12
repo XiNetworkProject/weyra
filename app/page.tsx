@@ -1,10 +1,5 @@
-import AtlasApp from "@/components/atlas/AtlasApp";
-import WeyraProductProvider from "@/components/product/WeyraProductProvider";
+import Weyra from "@/components/weyra";
 
 export default function HomePage() {
-  return (
-    <WeyraProductProvider>
-      <AtlasApp />
-    </WeyraProductProvider>
-  );
+  return <Weyra />;
 }

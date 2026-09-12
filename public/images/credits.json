@@ -1,0 +1,39 @@
+{
+  "use": "Illustrative demo gallery and community banners; these are not current weather observations.",
+  "license_url": "https://unsplash.com/license",
+  "assets": [
+    {
+      "path": "/workspace/weyra-assets/storm-countryside.jpg",
+      "title": "Dramatic storm over open countryside",
+      "photographer": "Greg Johnson",
+      "photographer_evidence": "Image-search result identifies photographer; source page itself did not open in web tool.",
+      "width": 3000,
+      "height": 2250,
+      "source_page": "https://unsplash.com/it/foto/una-grande-nuvola-nera-e-nel-cielo-sopra-un-campo-uDCZXC9pUnU",
+      "image_url": "https://images.unsplash.com/photo-1594480464691-7d223cab32b9?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDM3fHx8ZW58MHx8fHx8&ixlib=rb-4.1.0&q=60&w=3000",
+      "reuse": "Image-search result describes a free Unsplash photograph. Unsplash License permits commercial and noncommercial use. Attribution appreciated."
+    },
+    {
+      "path": "/workspace/weyra-assets/lightning-city.jpg",
+      "title": "Lightning over Veliko Tarnovo, Bulgaria",
+      "photographer": "Ceco Petrov",
+      "photographer_evidence": "Confirmed on opened Unsplash source page, which explicitly labels image free under Unsplash License.",
+      "width": 3000,
+      "height": 1754,
+      "source_page": "https://unsplash.com/photos/lightning-strikes-over-a-cityscape-during-a-storm-QJXwJAMLcP8",
+      "image_url": "https://images.unsplash.com/photo-1747995265855-d2c74dfcdfdd?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=60&w=3000",
+      "reuse": "Free under Unsplash License; commercial and noncommercial use permitted. Attribution appreciated."
+    },
+    {
+      "path": "/workspace/weyra-assets/warm-alpine-cloudscape.jpg",
+      "title": "Warm clouds over the Bavarian Alps",
+      "photographer": "FUTC",
+      "photographer_evidence": "Image-search result identifies photographer and Garmisch-Partenkirchen location; source page itself did not open in web tool.",
+      "width": 3000,
+      "height": 2001,
+      "source_page": "https://unsplash.com/fr/photos/montagnes-noires-et-blanches-sous-un-ciel-nuageux-pendant-la-journee-ZVilAF1Q8mU",
+      "image_url": "https://images.unsplash.com/photo-1625865757464-dad39944b5c2?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&ixlib=rb-4.1.0&q=60&w=3000",
+      "reuse": "Image-search result describes a free Unsplash photograph. Unsplash License permits commercial and noncommercial use. Attribution appreciated."
+    }
+  ]
+}

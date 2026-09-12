@@ -1,4 +1,8 @@
 "use client";
+import "@/app/legacy.css";
+import "@/app/product.css";
+import "@/app/community.css";
+import "@/app/weyra-theme.css";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -160,12 +164,12 @@ function boundsPolygon(bounds: DbzhDiagnostic["geographicBounds"]) {
 }
 
 function lonLatToTile(lon: number, lat: number, z: number) {
-  const latRadians = lat * Math.PI / 180;
+  const latRadians = (lat * Math.PI) / 180;
   const scale = 2 ** z;
   return {
     z,
-    x: Math.floor((lon + 180) / 360 * scale),
-    y: Math.floor((1 - Math.log(Math.tan(latRadians) + 1 / Math.cos(latRadians)) / Math.PI) / 2 * scale),
+    x: Math.floor(((lon + 180) / 360) * scale),
+    y: Math.floor(((1 - Math.log(Math.tan(latRadians) + 1 / Math.cos(latRadians)) / Math.PI) / 2) * scale),
   };
 }
 
@@ -208,7 +212,7 @@ export default function OperaQaPage() {
       setError(null);
       try {
         const response = await fetch("/api/radar/opera/qa", { cache: "no-store" });
-        const payload = await response.json() as QaReport | QaError;
+        const payload = (await response.json()) as QaReport | QaError;
         if (!response.ok || !payload.ok) {
           throw new Error("error" in payload ? payload.error : `QA HTTP ${response.status}`);
         }
@@ -236,7 +240,7 @@ export default function OperaQaPage() {
     async function loadFrames() {
       try {
         const response = await fetch("/api/radar/opera/frames?count=12", { cache: "no-store" });
-        const payload = await response.json() as FrameManifest;
+        const payload = (await response.json()) as FrameManifest;
         const readyFrames = (payload.frames ?? []).filter((frame) => frame.status === "ready");
         const merged = new Map<string, FrameOption>();
         merged.set(stableReport.timestamp, {
@@ -249,12 +253,14 @@ export default function OperaQaPage() {
         if (!cancelled) setFrameOptions([...merged.values()].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
       } catch {
         if (!cancelled) {
-          setFrameOptions([{
-            timestamp: stableReport.timestamp,
-            status: "ready",
-            imageUrl: stableReport.atlasRuntimeImageUrl,
-            metadataUrl: stableReport.metadataUrl,
-          }]);
+          setFrameOptions([
+            {
+              timestamp: stableReport.timestamp,
+              status: "ready",
+              imageUrl: stableReport.atlasRuntimeImageUrl,
+              metadataUrl: stableReport.metadataUrl,
+            },
+          ]);
         }
       }
     }
@@ -325,11 +331,15 @@ export default function OperaQaPage() {
                 properties: { kind: "four-corner" },
                 geometry: { type: "LineString", coordinates: footprint },
               },
-              ...(bbox ? [{
-                type: "Feature" as const,
-                properties: { kind: "bbox" },
-                geometry: { type: "LineString" as const, coordinates: bbox },
-              }] : []),
+              ...(bbox
+                ? [
+                    {
+                      type: "Feature" as const,
+                      properties: { kind: "bbox" },
+                      geometry: { type: "LineString" as const, coordinates: bbox },
+                    },
+                  ]
+                : []),
             ],
           },
         });
@@ -393,9 +403,10 @@ export default function OperaQaPage() {
 
   function selectTileDisplayVersion(version: TileDisplayVersion) {
     setTileDisplayVersion(version);
-    const selectedMeta = tileMetas.find((meta) => meta.displayVersion === version && meta.z === 10)
-      ?? tileMetas.find((meta) => meta.displayVersion === version)
-      ?? null;
+    const selectedMeta =
+      tileMetas.find((meta) => meta.displayVersion === version && meta.z === 10) ??
+      tileMetas.find((meta) => meta.displayVersion === version) ??
+      null;
     setLastTileMeta(selectedMeta);
     setTilePrepared(tileMetas.length > 0);
   }
@@ -433,7 +444,7 @@ export default function OperaQaPage() {
             style: version,
           }),
         });
-        const prewarmPayload = await prewarmResponse.json() as { ok?: boolean; error?: string };
+        const prewarmPayload = (await prewarmResponse.json()) as { ok?: boolean; error?: string };
         if (!prewarmResponse.ok || !prewarmPayload.ok) {
           throw new Error(prewarmPayload.error ?? `PrÃ©chauffage ${version} indisponible (${prewarmResponse.status}).`);
         }
@@ -442,11 +453,13 @@ export default function OperaQaPage() {
           const tileResponse = await fetch(tileUrl(timestamp, tile, version), { cache: "no-store" });
           const contentType = tileResponse.headers.get("content-type") ?? "";
           if (!tileResponse.ok || !contentType.toLowerCase().includes("image/webp")) {
-            throw new Error(`Tuile ${tile.z}/${tile.x}/${tile.y} ${version} invalide (${tileResponse.status}, ${contentType || "type inconnu"}).`);
+            throw new Error(
+              `Tuile ${tile.z}/${tile.x}/${tile.y} ${version} invalide (${tileResponse.status}, ${contentType || "type inconnu"}).`,
+            );
           }
 
           const metaResponse = await fetch(tileMetaUrl(timestamp, tile, version), { cache: "no-store" });
-          const meta = await metaResponse.json() as TileMeta;
+          const meta = (await metaResponse.json()) as TileMeta;
           if (!metaResponse.ok || !meta.ok) {
             throw new Error(meta.error ?? `Diagnostic tuile ${tile.z}/${tile.x}/${tile.y} ${version} indisponible.`);
           }
@@ -460,10 +473,11 @@ export default function OperaQaPage() {
         }
       }
 
-      const selectedMeta = loadedMetas.find((meta) => meta.displayVersion === tileDisplayVersion && meta.z === 10)
-        ?? loadedMetas.find((meta) => meta.displayVersion === tileDisplayVersion)
-        ?? loadedMetas.at(-1)
-        ?? null;
+      const selectedMeta =
+        loadedMetas.find((meta) => meta.displayVersion === tileDisplayVersion && meta.z === 10) ??
+        loadedMetas.find((meta) => meta.displayVersion === tileDisplayVersion) ??
+        loadedMetas.at(-1) ??
+        null;
       setLastTileMeta(selectedMeta);
       setTileMetas(loadedMetas);
       setTilePrepared(true);
@@ -560,7 +574,10 @@ export default function OperaQaPage() {
       ["pixels transparents", formatInteger(diagnostic.transparentPixelCount)],
       ["pixels pluie visibles", formatInteger(diagnostic.visiblePrecipitationPixelCount)],
       ["pixels invalides colorés", formatInteger(diagnostic.invalidColoredPixelCount)],
-      ["min/max DBZH convertis", `${formatNumber(diagnostic.dbzhRange.min)} / ${formatNumber(diagnostic.dbzhRange.max)} dBZ`],
+      [
+        "min/max DBZH convertis",
+        `${formatNumber(diagnostic.dbzhRange.min)} / ${formatNumber(diagnostic.dbzhRange.max)} dBZ`,
+      ],
     ];
   }, [report]);
 
@@ -624,13 +641,24 @@ export default function OperaQaPage() {
         <section className="qa-top">
           <div>
             <h1>Weyra Radar QA</h1>
-            <p>Diagnostic réel du composite OPERA DBZH : décodage ODIM, transparence, rendu natif et overlay Atlas actuel.</p>
+            <p>
+              Diagnostic réel du composite OPERA DBZH : décodage ODIM, transparence, rendu natif et overlay Atlas
+              actuel.
+            </p>
           </div>
           {report && <div className="qa-pill">{formatUtc(report.timestamp)} UTC</div>}
         </section>
 
-        {loading && <section className="qa-card"><div className="qa-card__body">Génération du diagnostic OPERA réel...</div></section>}
-        {error && <section className="qa-card"><div className="qa-card__body qa-error">{error}</div></section>}
+        {loading && (
+          <section className="qa-card">
+            <div className="qa-card__body">Génération du diagnostic OPERA réel...</div>
+          </section>
+        )}
+        {error && (
+          <section className="qa-card">
+            <div className="qa-card__body qa-error">{error}</div>
+          </section>
+        )}
 
         {report && (
           <div className="qa-grid">
@@ -638,16 +666,27 @@ export default function OperaQaPage() {
               <section className="qa-card">
                 <header>
                   <h2>Rendus QA réels</h2>
-                  <p>Les deux images viennent du même HDF5 DBZH. Le rendu Atlas correspond au WebP envoyé aujourd’hui à MapLibre.</p>
+                  <p>
+                    Les deux images viennent du même HDF5 DBZH. Le rendu Atlas correspond au WebP envoyé aujourd’hui à
+                    MapLibre.
+                  </p>
                 </header>
                 <div className="qa-card__body qa-images">
                   <div className="qa-image">
-                    <b>Native-grid · {report.width} x {report.height}</b>
-                    <img src={imageUrl(report.nativeGridImageUrl, report.timestamp)} alt="Rendu OPERA DBZH en grille native" />
+                    <b>
+                      Native-grid · {report.width} x {report.height}
+                    </b>
+                    <img
+                      src={imageUrl(report.nativeGridImageUrl, report.timestamp)}
+                      alt="Rendu OPERA DBZH en grille native"
+                    />
                   </div>
                   <div className="qa-image">
                     <b>Current-map-overlay · WebP Atlas</b>
-                    <img src={imageUrl(report.currentMapOverlayImageUrl, report.timestamp)} alt="Rendu OPERA DBZH actuellement envoyé à Atlas" />
+                    <img
+                      src={imageUrl(report.currentMapOverlayImageUrl, report.timestamp)}
+                      alt="Rendu OPERA DBZH actuellement envoyé à Atlas"
+                    />
                   </div>
                 </div>
               </section>
@@ -655,13 +694,20 @@ export default function OperaQaPage() {
               <section className="qa-card" style={{ marginTop: 18 }}>
                 <header>
                   <h2>Carte de cohérence géographique</h2>
-                  <p>Image actuelle posée aux quatre coins, coins en blanc, contour quatre coins en violet, bbox géographique en cyan pointillé.</p>
+                  <p>
+                    Image actuelle posée aux quatre coins, coins en blanc, contour quatre coins en violet, bbox
+                    géographique en cyan pointillé.
+                  </p>
                 </header>
                 <div className="qa-card__body">
                   <div ref={mapContainerRef} className="qa-map" />
                   <div className="qa-map-buttons">
-                    <button onClick={() => mapRef.current?.flyTo({ center: [3.3, 50.86], zoom: 7.1, duration: 650 })}>Lille / Dunkerque / Belgique</button>
-                    <button onClick={() => mapRef.current?.flyTo({ center: [7.2, 51.6], zoom: 6.2, duration: 650 })}>Allemagne / Pays-Bas</button>
+                    <button onClick={() => mapRef.current?.flyTo({ center: [3.3, 50.86], zoom: 7.1, duration: 650 })}>
+                      Lille / Dunkerque / Belgique
+                    </button>
+                    <button onClick={() => mapRef.current?.flyTo({ center: [7.2, 51.6], zoom: 6.2, duration: 650 })}>
+                      Allemagne / Pays-Bas
+                    </button>
                   </div>
                 </div>
               </section>
@@ -669,19 +715,46 @@ export default function OperaQaPage() {
               <section className="qa-card" style={{ marginTop: 18 }}>
                 <header>
                   <h2>Validation tuiles Web Mercator</h2>
-                  <p>Comparaison QA entre les tuiles Weyra V3c et V4a, depuis la même frame OPERA locale, sans superposition des rendus.</p>
+                  <p>
+                    Comparaison QA entre les tuiles Weyra V3c et V4a, depuis la même frame OPERA locale, sans
+                    superposition des rendus.
+                  </p>
                 </header>
                 <div className="qa-card__body">
                   <div className="qa-controls">
                     <label>
                       Frame réelle prête
-                      <select value={selectedTileTimestamp} onChange={(event) => { setSelectedTileTimestamp(event.target.value); setTilePrepared(false); setLastTileMeta(null); setTileMetas([]); }}>
-                        {(frameOptions.length ? frameOptions : [{ timestamp: report.timestamp, status: "ready", imageUrl: report.atlasRuntimeImageUrl, metadataUrl: report.metadataUrl }]).map((frame) => (
-                          <option key={frame.timestamp} value={frame.timestamp}>{formatUtc(frame.timestamp)}</option>
+                      <select
+                        value={selectedTileTimestamp}
+                        onChange={(event) => {
+                          setSelectedTileTimestamp(event.target.value);
+                          setTilePrepared(false);
+                          setLastTileMeta(null);
+                          setTileMetas([]);
+                        }}
+                      >
+                        {(frameOptions.length
+                          ? frameOptions
+                          : [
+                              {
+                                timestamp: report.timestamp,
+                                status: "ready",
+                                imageUrl: report.atlasRuntimeImageUrl,
+                                metadataUrl: report.metadataUrl,
+                              },
+                            ]
+                        ).map((frame) => (
+                          <option key={frame.timestamp} value={frame.timestamp}>
+                            {formatUtc(frame.timestamp)}
+                          </option>
                         ))}
                       </select>
                     </label>
-                    <button className="qa-primary" onClick={() => void prepareTestTiles()} disabled={tileLoading || !selectedTileTimestamp}>
+                    <button
+                      className="qa-primary"
+                      onClick={() => void prepareTestTiles()}
+                      disabled={tileLoading || !selectedTileTimestamp}
+                    >
                       {tileLoading ? "Préparation..." : "Préparer les tuiles de test"}
                     </button>
                   </div>
@@ -689,31 +762,103 @@ export default function OperaQaPage() {
                   {tileError && <p className="qa-error">{tileError}</p>}
 
                   <div className="qa-segment" aria-label="Mode de validation radar">
-                    <button className={tileDisplayVersion === "v3c" ? "is-active" : ""} onClick={() => selectTileDisplayVersion("v3c")}>Avant · V3c</button>
-                    <button className={tileDisplayVersion === "v4a" ? "is-active" : ""} onClick={() => selectTileDisplayVersion("v4a")}>Nouveau · V4a</button>
+                    <button
+                      className={tileDisplayVersion === "v3c" ? "is-active" : ""}
+                      onClick={() => selectTileDisplayVersion("v3c")}
+                    >
+                      Avant · V3c
+                    </button>
+                    <button
+                      className={tileDisplayVersion === "v4a" ? "is-active" : ""}
+                      onClick={() => selectTileDisplayVersion("v4a")}
+                    >
+                      Nouveau · V4a
+                    </button>
                   </div>
 
                   <div ref={tileMapContainerRef} className="qa-map" />
                   <div className="qa-map-buttons">
-                    <button onClick={() => tileMapRef.current?.flyTo({ center: [10.25, 52.38], zoom: 8, duration: 650 })}>Hanovre régional z8</button>
-                    <button onClick={() => tileMapRef.current?.flyTo({ center: [10.25, 52.38], zoom: 10, duration: 650 })}>Hanovre rapproché z10</button>
+                    <button
+                      onClick={() => tileMapRef.current?.flyTo({ center: [10.25, 52.38], zoom: 8, duration: 650 })}
+                    >
+                      Hanovre régional z8
+                    </button>
+                    <button
+                      onClick={() => tileMapRef.current?.flyTo({ center: [10.25, 52.38], zoom: 10, duration: 650 })}
+                    >
+                      Hanovre rapproché z10
+                    </button>
                   </div>
 
                   <div className="qa-tile-stats">
-                    <div><span>Zoom carte</span><b>{formatNumber(tileMapZoom, 2)}</b></div>
-                    <div><span>Version</span><b>{lastTileMeta?.displayVersion ?? tileDisplayVersion}</b></div>
-                    <div><span>Resampling DBZH</span><b>{lastTileMeta?.resamplingDBZH ?? "n/a"}</b></div>
-                    <div><span>Resampling alpha</span><b>{lastTileMeta?.resamplingAlpha ?? "n/a"}</b></div>
-                    <div><span>Seuil</span><b>{lastTileMeta?.thresholdDbzh !== null && lastTileMeta?.thresholdDbzh !== undefined ? `${lastTileMeta.thresholdDbzh} dBZ` : "n/a"}</b></div>
-                    <div><span>Gutter</span><b>{lastTileMeta?.gutterPixels ?? "n/a"} px</b></div>
-                    <div><span>Résolution native</span><b>{lastTileMeta?.sourceGridWidth && lastTileMeta?.sourceGridHeight ? `${lastTileMeta.sourceGridWidth} x ${lastTileMeta.sourceGridHeight}` : "n/a"}</b></div>
-                    <div><span>Pixel source</span><b>{lastTileMeta?.sourceGridPixelSize ? `${formatNumber(lastTileMeta.sourceGridPixelSize.x / 1000, 2)} km` : "n/a"}</b></div>
-                    <div><span>Préservation &gt;35 dBZ</span><b>{lastTileMeta ? flag(lastTileMeta.strongEchoPreservationUsed) : "n/a"}</b></div>
-                    <div><span>Tuiles chargées</span><b>{tileStats.loaded}</b></div>
-                    <div><span>En attente</span><b>{tileStats.pending}</b></div>
-                    <div><span>Erreurs</span><b>{tileStats.error}</b></div>
-                    <div><span>Pixels visibles</span><b>{lastTileMeta ? formatInteger(lastTileMeta.validPixels) : "n/a"}</b></div>
-                    <div><span>Pixels transparents</span><b>{lastTileMeta ? formatInteger(lastTileMeta.transparentPixels) : "n/a"}</b></div>
+                    <div>
+                      <span>Zoom carte</span>
+                      <b>{formatNumber(tileMapZoom, 2)}</b>
+                    </div>
+                    <div>
+                      <span>Version</span>
+                      <b>{lastTileMeta?.displayVersion ?? tileDisplayVersion}</b>
+                    </div>
+                    <div>
+                      <span>Resampling DBZH</span>
+                      <b>{lastTileMeta?.resamplingDBZH ?? "n/a"}</b>
+                    </div>
+                    <div>
+                      <span>Resampling alpha</span>
+                      <b>{lastTileMeta?.resamplingAlpha ?? "n/a"}</b>
+                    </div>
+                    <div>
+                      <span>Seuil</span>
+                      <b>
+                        {lastTileMeta?.thresholdDbzh !== null && lastTileMeta?.thresholdDbzh !== undefined
+                          ? `${lastTileMeta.thresholdDbzh} dBZ`
+                          : "n/a"}
+                      </b>
+                    </div>
+                    <div>
+                      <span>Gutter</span>
+                      <b>{lastTileMeta?.gutterPixels ?? "n/a"} px</b>
+                    </div>
+                    <div>
+                      <span>Résolution native</span>
+                      <b>
+                        {lastTileMeta?.sourceGridWidth && lastTileMeta?.sourceGridHeight
+                          ? `${lastTileMeta.sourceGridWidth} x ${lastTileMeta.sourceGridHeight}`
+                          : "n/a"}
+                      </b>
+                    </div>
+                    <div>
+                      <span>Pixel source</span>
+                      <b>
+                        {lastTileMeta?.sourceGridPixelSize
+                          ? `${formatNumber(lastTileMeta.sourceGridPixelSize.x / 1000, 2)} km`
+                          : "n/a"}
+                      </b>
+                    </div>
+                    <div>
+                      <span>Préservation &gt;35 dBZ</span>
+                      <b>{lastTileMeta ? flag(lastTileMeta.strongEchoPreservationUsed) : "n/a"}</b>
+                    </div>
+                    <div>
+                      <span>Tuiles chargées</span>
+                      <b>{tileStats.loaded}</b>
+                    </div>
+                    <div>
+                      <span>En attente</span>
+                      <b>{tileStats.pending}</b>
+                    </div>
+                    <div>
+                      <span>Erreurs</span>
+                      <b>{tileStats.error}</b>
+                    </div>
+                    <div>
+                      <span>Pixels visibles</span>
+                      <b>{lastTileMeta ? formatInteger(lastTileMeta.validPixels) : "n/a"}</b>
+                    </div>
+                    <div>
+                      <span>Pixels transparents</span>
+                      <b>{lastTileMeta ? formatInteger(lastTileMeta.transparentPixels) : "n/a"}</b>
+                    </div>
                   </div>
                   {tileMetas.length > 0 && (
                     <table className="qa-table" style={{ marginTop: 12 }}>
@@ -722,14 +867,19 @@ export default function OperaQaPage() {
                           <th>Tuile testée</th>
                           <td>
                             {tileMetas.map((meta) => (
-                              <div key={`${meta.label}-${meta.displayVersion}-${meta.z}-${meta.x}-${meta.y}`} style={{ marginBottom: 8 }}>
+                              <div
+                                key={`${meta.label}-${meta.displayVersion}-${meta.z}-${meta.x}-${meta.y}`}
+                                style={{ marginBottom: 8 }}
+                              >
                                 <b>{meta.label}</b>
                                 {" · "}
                                 {meta.displayVersion}
                                 {" · "}
                                 {meta.resamplingDBZH ?? "n/a"}
                                 {" · native "}
-                                {meta.sourceGridWidth && meta.sourceGridHeight ? `${meta.sourceGridWidth} x ${meta.sourceGridHeight}` : "n/a"}
+                                {meta.sourceGridWidth && meta.sourceGridHeight
+                                  ? `${meta.sourceGridWidth} x ${meta.sourceGridHeight}`
+                                  : "n/a"}
                                 {" · forts >35 dBZ "}
                                 {flag(meta.strongEchoPreservationUsed)}
                                 {" · visibles "}
@@ -744,12 +894,17 @@ export default function OperaQaPage() {
                     </table>
                   )}
                   <p className="qa-note">
-                    Tuiles Web Mercator EPSG:3857 générées depuis une vraie trame OPERA DBZH. La comparaison prépare exactement Hanovre / Wolfsburg en z=8 régional et z=10 rapproché, pour V3c et V4a sur le même timestamp. URL template interne : {selectedTileTimestamp ? tileTemplate(selectedTileTimestamp, tileDisplayVersion) : "n/a"}
+                    Tuiles Web Mercator EPSG:3857 générées depuis une vraie trame OPERA DBZH. La comparaison prépare
+                    exactement Hanovre / Wolfsburg en z=8 régional et z=10 rapproché, pour V3c et V4a sur le même
+                    timestamp. URL template interne :{" "}
+                    {selectedTileTimestamp ? tileTemplate(selectedTileTimestamp, tileDisplayVersion) : "n/a"}
                   </p>
 
                   <details className="qa-details">
                     <summary>Diagnostic de la dernière tuile chargée</summary>
-                    <pre className="qa-pre">{lastTileMeta ? JSON.stringify(lastTileMeta, null, 2) : "Aucune tuile test chargée."}</pre>
+                    <pre className="qa-pre">
+                      {lastTileMeta ? JSON.stringify(lastTileMeta, null, 2) : "Aucune tuile test chargée."}
+                    </pre>
                   </details>
                 </div>
               </section>
@@ -761,10 +916,28 @@ export default function OperaQaPage() {
                 <div className="qa-card__body">
                   <table className="qa-table">
                     <tbody>
-                      <tr><th>Projection source</th><td>{report.diagnostic.projection ?? "n/a"}</td></tr>
-                      <tr><th>Bbox projetée</th><td><pre className="qa-pre">{JSON.stringify(report.diagnostic.projectionBounds, null, 2)}</pre></td></tr>
-                      <tr><th>Quatre coins MapLibre EPSG:4326</th><td><pre className="qa-pre">{JSON.stringify(report.diagnostic.mapLibreCorners, null, 2)}</pre></td></tr>
-                      <tr><th>Bbox géographique</th><td><pre className="qa-pre">{JSON.stringify(report.diagnostic.geographicBounds, null, 2)}</pre></td></tr>
+                      <tr>
+                        <th>Projection source</th>
+                        <td>{report.diagnostic.projection ?? "n/a"}</td>
+                      </tr>
+                      <tr>
+                        <th>Bbox projetée</th>
+                        <td>
+                          <pre className="qa-pre">{JSON.stringify(report.diagnostic.projectionBounds, null, 2)}</pre>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Quatre coins MapLibre EPSG:4326</th>
+                        <td>
+                          <pre className="qa-pre">{JSON.stringify(report.diagnostic.mapLibreCorners, null, 2)}</pre>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Bbox géographique</th>
+                        <td>
+                          <pre className="qa-pre">{JSON.stringify(report.diagnostic.geographicBounds, null, 2)}</pre>
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -780,7 +953,10 @@ export default function OperaQaPage() {
                   <table className="qa-table">
                     <tbody>
                       {statsRows.map(([label, value]) => (
-                        <tr key={label}><th>{label}</th><td>{value}</td></tr>
+                        <tr key={label}>
+                          <th>{label}</th>
+                          <td>{value}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -811,12 +987,33 @@ export default function OperaQaPage() {
                   <p>{report.diagnostic.diagnostic.summary}</p>
                 </header>
                 <div className="qa-card__body qa-diagnostic">
-                  <div>Décodage DBZH correct <b className={report.diagnostic.diagnostic.dbzhDecodingLooksCorrect ? "qa-ok" : "qa-error"}>{flag(report.diagnostic.diagnostic.dbzhDecodingLooksCorrect)}</b></div>
-                  <div>Nodata / undetect transparents <b className={report.diagnostic.diagnostic.transparencyLooksCorrect ? "qa-ok" : "qa-error"}>{flag(report.diagnostic.diagnostic.transparencyLooksCorrect)}</b></div>
-                  <div>Palette cause principale <b>{flag(report.diagnostic.diagnostic.paletteLikelyPrimaryIssue)}</b></div>
-                  <div>Lissage / rééchantillonnage en cause <b className="qa-warn">{flag(report.diagnostic.diagnostic.smoothingLikelyIssue)}</b></div>
-                  <div>LAEA étirée par quatre coins en cause <b className="qa-warn">{flag(report.diagnostic.diagnostic.fourCornerLaeaWarpLikelyIssue)}</b></div>
-                  <div>Mélange de causes probable <b className="qa-warn">{flag(report.diagnostic.diagnostic.mixedCauseLikely)}</b></div>
+                  <div>
+                    Décodage DBZH correct{" "}
+                    <b className={report.diagnostic.diagnostic.dbzhDecodingLooksCorrect ? "qa-ok" : "qa-error"}>
+                      {flag(report.diagnostic.diagnostic.dbzhDecodingLooksCorrect)}
+                    </b>
+                  </div>
+                  <div>
+                    Nodata / undetect transparents{" "}
+                    <b className={report.diagnostic.diagnostic.transparencyLooksCorrect ? "qa-ok" : "qa-error"}>
+                      {flag(report.diagnostic.diagnostic.transparencyLooksCorrect)}
+                    </b>
+                  </div>
+                  <div>
+                    Palette cause principale <b>{flag(report.diagnostic.diagnostic.paletteLikelyPrimaryIssue)}</b>
+                  </div>
+                  <div>
+                    Lissage / rééchantillonnage en cause{" "}
+                    <b className="qa-warn">{flag(report.diagnostic.diagnostic.smoothingLikelyIssue)}</b>
+                  </div>
+                  <div>
+                    LAEA étirée par quatre coins en cause{" "}
+                    <b className="qa-warn">{flag(report.diagnostic.diagnostic.fourCornerLaeaWarpLikelyIssue)}</b>
+                  </div>
+                  <div>
+                    Mélange de causes probable{" "}
+                    <b className="qa-warn">{flag(report.diagnostic.diagnostic.mixedCauseLikely)}</b>
+                  </div>
                 </div>
               </section>
             </aside>

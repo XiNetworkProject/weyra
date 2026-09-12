@@ -1,8 +1,17 @@
 "use client";
+import "@/app/legacy.css";
+import "@/app/product.css";
+import "@/app/community.css";
+import "@/app/weyra-theme.css";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
-import type { MapLibreImageCoordinates, OperaFrameManifest, OperaFrameManifestItem, OperaRadarOverlayMeta } from "@/lib/types";
+import type {
+  MapLibreImageCoordinates,
+  OperaFrameManifest,
+  OperaFrameManifestItem,
+  OperaRadarOverlayMeta,
+} from "@/lib/types";
 
 type DataLink = {
   href: string;
@@ -209,7 +218,13 @@ function RadarValidationMap({ result }: { result: OperaRadarOverlayMeta | null }
           },
         });
 
-        map.fitBounds([[1.35, 50.28], [5.65, 51.55]], { padding: 42, duration: 0 });
+        map.fitBounds(
+          [
+            [1.35, 50.28],
+            [5.65, 51.55],
+          ],
+          { padding: 42, duration: 0 },
+        );
         addPlaceMarker(map, "Lille", [3.0573, 50.6292], markers);
         addPlaceMarker(map, "Dunkerque", [2.3768, 51.0344], markers);
         addPlaceMarker(map, "Calais", [1.8587, 50.9513], markers);
@@ -230,7 +245,11 @@ function RadarValidationMap({ result }: { result: OperaRadarOverlayMeta | null }
   if (!result) return null;
 
   if (!result.hasGeoreferencing || !result.mapLibreCoordinates) {
-    return <p className="radar-lab__error">Georeferencement OPERA invalide : {result.warning ?? "coordonnees MapLibre absentes."}</p>;
+    return (
+      <p className="radar-lab__error">
+        Georeferencement OPERA invalide : {result.warning ?? "coordonnees MapLibre absentes."}
+      </p>
+    );
   }
 
   return (
@@ -241,15 +260,22 @@ function RadarValidationMap({ result }: { result: OperaRadarOverlayMeta | null }
       </div>
       <div ref={containerRef} className="radar-lab__map" />
       <p className="radar-lab__caption">
-        Carte de validation locale : l'image OPERA est ajoutee comme source MapLibre georeferencee, sans timeline ni tuilage.
+        Carte de validation locale : l'image OPERA est ajoutee comme source MapLibre georeferencee, sans timeline ni
+        tuilage.
       </p>
       <details className="radar-lab__inline-details">
         <summary>Coordonnees MapLibre utilisees</summary>
-        <pre>{JSON.stringify({
-          mapLibreCoordinates: result.mapLibreCoordinates,
-          geographicBounds: result.geographicBounds,
-          projectionBounds: result.projectionBounds,
-        }, null, 2)}</pre>
+        <pre>
+          {JSON.stringify(
+            {
+              mapLibreCoordinates: result.mapLibreCoordinates,
+              geographicBounds: result.geographicBounds,
+              projectionBounds: result.projectionBounds,
+            },
+            null,
+            2,
+          )}
+        </pre>
       </details>
     </section>
   );
@@ -311,7 +337,9 @@ export default function RadarLabPage() {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updateReducedMotion = () => { setPrefersReducedMotion(mediaQuery.matches); };
+    const updateReducedMotion = () => {
+      setPrefersReducedMotion(mediaQuery.matches);
+    };
 
     updateReducedMotion();
     mediaQuery.addEventListener("change", updateReducedMotion);
@@ -428,7 +456,7 @@ export default function RadarLabPage() {
 
     try {
       const response = await fetch(frame.metadataUrl, { cache: "no-store" });
-      const payload = await response.json() as RenderResult;
+      const payload = (await response.json()) as RenderResult;
 
       if (!response.ok || !payload.ok) {
         throw new Error(("error" in payload ? payload.error : undefined) ?? "Metadata de trame indisponible.");
@@ -440,7 +468,10 @@ export default function RadarLabPage() {
     }
   }
 
-  function showFrameImmediately(frame: OperaFrameManifestItem, options: { manifest?: OperaFrameManifest; stop?: boolean } = {}) {
+  function showFrameImmediately(
+    frame: OperaFrameManifestItem,
+    options: { manifest?: OperaFrameManifest; stop?: boolean } = {},
+  ) {
     const manifest = options.manifest ?? historyManifest;
     const index = manifest?.frames.findIndex((candidate) => candidate.timestamp === frame.timestamp) ?? -1;
 
@@ -490,12 +521,15 @@ export default function RadarLabPage() {
       fadeRafRef.current = null;
     });
 
-    dominanceTimerRef.current = window.setTimeout(() => {
-      setPlayerIndex(nextIndex);
-      setSelectedFrame(frame);
-      void loadSelectedFrameMetadata(frame);
-      dominanceTimerRef.current = null;
-    }, Math.round(fadeDuration / 2));
+    dominanceTimerRef.current = window.setTimeout(
+      () => {
+        setPlayerIndex(nextIndex);
+        setSelectedFrame(frame);
+        void loadSelectedFrameMetadata(frame);
+        dominanceTimerRef.current = null;
+      },
+      Math.round(fadeDuration / 2),
+    );
 
     fadeTimerRef.current = window.setTimeout(() => {
       setBaseFrame(frame);
@@ -557,7 +591,7 @@ export default function RadarLabPage() {
 
     try {
       const response = await fetch("/api/radar/opera/latest", { cache: "no-store" });
-      const payload = await response.json() as OperaResult;
+      const payload = (await response.json()) as OperaResult;
       setResult(payload);
     } catch {
       setClientError("Impossible d'interroger la route locale /api/radar/opera/latest.");
@@ -574,7 +608,7 @@ export default function RadarLabPage() {
 
     try {
       const response = await fetch("/api/radar/opera/render/latest/meta", { cache: "no-store" });
-      const payload = await response.json() as RenderResult;
+      const payload = (await response.json()) as RenderResult;
 
       if (!response.ok || !payload.ok) {
         throw new Error(("error" in payload ? payload.error : undefined) ?? "Le rendu OPERA a echoue.");
@@ -592,7 +626,7 @@ export default function RadarLabPage() {
 
   async function fetchHistoryManifest(count = 12) {
     const response = await fetch(`/api/radar/opera/frames?count=${count}`, { cache: "no-store" });
-    const payload = await response.json() as OperaFrameManifest;
+    const payload = (await response.json()) as OperaFrameManifest;
 
     if (!response.ok && !payload.frames) {
       throw new Error(payload.error ?? "Impossible de decouvrir les scans OPERA.");
@@ -643,7 +677,9 @@ export default function RadarLabPage() {
           try {
             const polled = await fetchHistoryManifest(12);
             setHistoryManifest(polled);
-            setHistoryProgress(`Rendu ${polled.readyCount + polled.failedCount} / ${polled.availableCount || available || 12}`);
+            setHistoryProgress(
+              `Rendu ${polled.readyCount + polled.failedCount} / ${polled.availableCount || available || 12}`,
+            );
           } catch {
             // Keep the last known state while the POST is still rendering.
           }
@@ -651,7 +687,7 @@ export default function RadarLabPage() {
       })();
 
       const response = await postPromise;
-      const finalManifest = await response.json() as OperaFrameManifest;
+      const finalManifest = (await response.json()) as OperaFrameManifest;
       polling = false;
       await pollPromise;
 
@@ -660,7 +696,9 @@ export default function RadarLabPage() {
       }
 
       setHistoryManifest(finalManifest);
-      setHistoryProgress(`Rendu ${finalManifest.readyCount + finalManifest.failedCount} / ${finalManifest.availableCount}`);
+      setHistoryProgress(
+        `Rendu ${finalManifest.readyCount + finalManifest.failedCount} / ${finalManifest.availableCount}`,
+      );
 
       const firstReady = finalManifest.frames.find((frame) => frame.status === "ready") ?? null;
       if (firstReady) {
@@ -682,7 +720,9 @@ export default function RadarLabPage() {
     : "Prechargement en attente";
   const displayFrame = selectedFrame ?? baseFrame;
   const playbackStatusText = canPlayHistory
-    ? isPlaying ? "Lecture en cours" : "Lecture prete"
+    ? isPlaying
+      ? "Lecture en cours"
+      : "Lecture prete"
     : "Lecture disponible avec au moins 2 scans charges";
   const sliderMax = Math.max((historyManifest?.frames.length ?? 1) - 1, 0);
 
@@ -699,7 +739,12 @@ export default function RadarLabPage() {
           <button className="radar-lab__button" type="button" onClick={testOperaRadar} disabled={loading}>
             {loading ? "Test en cours..." : "Tester le radar OPERA"}
           </button>
-          <button className="radar-lab__button radar-lab__button--secondary" type="button" onClick={renderLatestFrame} disabled={renderLoading}>
+          <button
+            className="radar-lab__button radar-lab__button--secondary"
+            type="button"
+            onClick={renderLatestFrame}
+            disabled={renderLoading}
+          >
             {renderLoading ? "Rendu en cours..." : "Rendre la derniere trame"}
           </button>
         </div>
@@ -709,7 +754,15 @@ export default function RadarLabPage() {
         <section className="radar-lab__card" aria-live="polite">
           <div className="radar-lab__status-row">
             <span className={`radar-lab__dot${result?.ok ? " is-ok" : ""}`} />
-            <b>{loading ? "Chargement" : result ? (result.ok ? "Composite trouve" : "Verification echouee") : "Test OPERA en attente"}</b>
+            <b>
+              {loading
+                ? "Chargement"
+                : result
+                  ? result.ok
+                    ? "Composite trouve"
+                    : "Verification echouee"
+                  : "Test OPERA en attente"}
+            </b>
           </div>
 
           <dl className="radar-lab__grid">
@@ -747,9 +800,7 @@ export default function RadarLabPage() {
             </div>
           </dl>
 
-          {(result?.error || clientError) && (
-            <p className="radar-lab__error">{result?.error ?? clientError}</p>
-          )}
+          {(result?.error || clientError) && <p className="radar-lab__error">{result?.error ?? clientError}</p>}
         </section>
 
         <section className="radar-lab__card radar-lab__render" aria-live="polite">
@@ -807,7 +858,12 @@ export default function RadarLabPage() {
               <h2>Trames reelles OPERA DBZH · rendu Weyra local</h2>
               <span>{historyCounter(historyManifest)}</span>
             </div>
-            <button className="radar-lab__button" type="button" onClick={prepareHistoryFrames} disabled={historyLoading}>
+            <button
+              className="radar-lab__button"
+              type="button"
+              onClick={prepareHistoryFrames}
+              disabled={historyLoading}
+            >
               {historyLoading ? "Preparation en cours..." : "Preparer les 12 derniers scans"}
             </button>
           </div>
@@ -815,7 +871,10 @@ export default function RadarLabPage() {
           <div className="radar-lab__progress">
             <span>{historyProgress}</span>
             {historyManifest && (
-              <b>{historyManifest.readyCount} prets · {historyManifest.failedCount} erreurs · {historyManifest.missingCount} manquants</b>
+              <b>
+                {historyManifest.readyCount} prets · {historyManifest.failedCount} erreurs ·{" "}
+                {historyManifest.missingCount} manquants
+              </b>
             )}
           </div>
 
@@ -876,23 +935,54 @@ export default function RadarLabPage() {
                 </div>
 
                 <p className="radar-lab__caption">
-                  Animation visuelle entre scans OPERA reels espaces de 5 minutes. Aucun nowcast ni donnee intermediaire n'est genere.
+                  Animation visuelle entre scans OPERA reels espaces de 5 minutes. Aucun nowcast ni donnee intermediaire
+                  n'est genere.
                 </p>
 
                 <div className="radar-lab__controls">
-                  <button className="radar-lab__control" type="button" onClick={togglePlayback} disabled={!canPlayHistory}>
+                  <button
+                    className="radar-lab__control"
+                    type="button"
+                    onClick={togglePlayback}
+                    disabled={!canPlayHistory}
+                  >
                     {isPlaying ? "Pause" : "Lecture"}
                   </button>
-                  <button className="radar-lab__control" type="button" onClick={() => { goToAdjacentFrame(-1); }} disabled={!canPlayHistory}>
+                  <button
+                    className="radar-lab__control"
+                    type="button"
+                    onClick={() => {
+                      goToAdjacentFrame(-1);
+                    }}
+                    disabled={!canPlayHistory}
+                  >
                     Precedent
                   </button>
-                  <button className="radar-lab__control" type="button" onClick={() => { goToAdjacentFrame(1); }} disabled={!canPlayHistory}>
+                  <button
+                    className="radar-lab__control"
+                    type="button"
+                    onClick={() => {
+                      goToAdjacentFrame(1);
+                    }}
+                    disabled={!canPlayHistory}
+                  >
                     Suivant
                   </button>
-                  <button className="radar-lab__control" type="button" onClick={goToLatestFrame} disabled={!canPlayHistory}>
+                  <button
+                    className="radar-lab__control"
+                    type="button"
+                    onClick={goToLatestFrame}
+                    disabled={!canPlayHistory}
+                  >
                     Dernier scan
                   </button>
-                  <button className={`radar-lab__control${loopEnabled ? " is-active" : ""}`} type="button" onClick={() => { setLoopEnabled((current) => !current); }}>
+                  <button
+                    className={`radar-lab__control${loopEnabled ? " is-active" : ""}`}
+                    type="button"
+                    onClick={() => {
+                      setLoopEnabled((current) => !current);
+                    }}
+                  >
                     Boucle {loopEnabled ? "active" : "inactive"}
                   </button>
 
@@ -902,7 +992,9 @@ export default function RadarLabPage() {
                         key={speed}
                         className={`radar-lab__speed-button${playbackSpeed === speed ? " is-active" : ""}`}
                         type="button"
-                        onClick={() => { setPlaybackSpeed(speed); }}
+                        onClick={() => {
+                          setPlaybackSpeed(speed);
+                        }}
                       >
                         {speed}x
                       </button>
@@ -925,7 +1017,9 @@ export default function RadarLabPage() {
                   />
                   <div className="radar-lab__slider-labels">
                     {historyManifest.frames.map((frame) => (
-                      <span key={frame.timestamp}>{formatShortTime(frame.timestamp, "Europe/Paris").replace(" UTC+2", "")}</span>
+                      <span key={frame.timestamp}>
+                        {formatShortTime(frame.timestamp, "Europe/Paris").replace(" UTC+2", "")}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -943,7 +1037,9 @@ export default function RadarLabPage() {
                       key={frame.timestamp}
                       className={`radar-lab__thumb${isSelected ? " is-selected" : ""}${isReady ? " is-ready" : ""}${isPlaying && isSelected ? " is-playing" : ""}`}
                       type="button"
-                      onClick={() => { void selectHistoryFrame(frame); }}
+                      onClick={() => {
+                        void selectHistoryFrame(frame);
+                      }}
                       role="listitem"
                     >
                       <span>{formatShortTime(frame.timestamp, "Europe/Paris")}</span>
@@ -954,7 +1050,15 @@ export default function RadarLabPage() {
                           <em>{frame.status === "failed" || isImageFailed ? "Erreur" : "Manquant"}</em>
                         )}
                       </div>
-                      <small>{isReady ? imageStatus === "loaded" ? "charge" : imageStatus === "failed" ? "erreur image" : "chargement" : frame.status}</small>
+                      <small>
+                        {isReady
+                          ? imageStatus === "loaded"
+                            ? "charge"
+                            : imageStatus === "failed"
+                              ? "erreur image"
+                              : "chargement"
+                          : frame.status}
+                      </small>
                       <span className="radar-lab__thumb-progress" aria-hidden="true" />
                     </button>
                   );
@@ -974,7 +1078,11 @@ export default function RadarLabPage() {
                     </div>
                     <div>
                       <dt>Dimensions</dt>
-                      <dd>{selectedFrame.width && selectedFrame.height ? `${selectedFrame.width} x ${selectedFrame.height}` : "Non disponible"}</dd>
+                      <dd>
+                        {selectedFrame.width && selectedFrame.height
+                          ? `${selectedFrame.width} x ${selectedFrame.height}`
+                          : "Non disponible"}
+                      </dd>
                     </div>
                     <div>
                       <dt>Taille WebP</dt>
@@ -982,7 +1090,9 @@ export default function RadarLabPage() {
                     </div>
                     <div>
                       <dt>Projection</dt>
-                      <dd>{selectedFrameMeta?.projection ?? selectedFrameMeta?.metadata?.projection ?? "Non chargee"}</dd>
+                      <dd>
+                        {selectedFrameMeta?.projection ?? selectedFrameMeta?.metadata?.projection ?? "Non chargee"}
+                      </dd>
                     </div>
                     <div>
                       <dt>Georeferencement</dt>
@@ -997,7 +1107,11 @@ export default function RadarLabPage() {
               <dl className="radar-lab__grid radar-lab__history-grid">
                 <div>
                   <dt>Chronologie</dt>
-                  <dd>{historyManifest.frames.map((frame) => formatShortTime(frame.timestamp, "Europe/Paris")).join(" -> ")}</dd>
+                  <dd>
+                    {historyManifest.frames
+                      .map((frame) => formatShortTime(frame.timestamp, "Europe/Paris"))
+                      .join(" -> ")}
+                  </dd>
                 </div>
                 <div>
                   <dt>Ecarts constates</dt>
@@ -1023,7 +1137,13 @@ export default function RadarLabPage() {
 
         <details className="radar-lab__json">
           <summary>Voir le manifest historique</summary>
-          <pre>{JSON.stringify(historyManifest ?? { ok: false, error: historyError ?? "Aucun historique prepare" }, null, 2)}</pre>
+          <pre>
+            {JSON.stringify(
+              historyManifest ?? { ok: false, error: historyError ?? "Aucun historique prepare" },
+              null,
+              2,
+            )}
+          </pre>
         </details>
 
         <details className="radar-lab__json">
