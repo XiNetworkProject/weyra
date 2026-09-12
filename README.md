@@ -1,6 +1,7 @@
 # Weyra Atlas — app web S4 Radar Foundation
 
-Atlas est la vraie application web de Weyra : **Next.js + TypeScript + MapLibre GL**. La carte est le produit principal ; toutes les informations doivent rester flottantes, légères et lisibles au-dessus du radar.
+> **Nouvelle interface Horizon** : le nouvel accueil immersif et Atlas remplacent l’ancienne interface sur cette branche. Les API météo et le moteur radar existants sont conservés. Voir [la mise en route et les détails de la migration](docs/horizon-interface.md).
+> Atlas est la vraie application web de Weyra : **Next.js + TypeScript + MapLibre GL**. La carte est le produit principal ; toutes les informations doivent rester flottantes, légères et lisibles au-dessus du radar.
 
 ## Cette version fait réellement
 

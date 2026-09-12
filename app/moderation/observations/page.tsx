@@ -1,4 +1,8 @@
 "use client";
+import "@/app/legacy.css";
+import "@/app/product.css";
+import "@/app/community.css";
+import "@/app/weyra-theme.css";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
