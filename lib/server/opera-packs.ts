@@ -1,4 +1,11 @@
 import "server-only";
+import {
+  mergeRadarSourceFrames as mergeSourceFrames,
+  radarSourceStyle,
+  type RadarPackSourceFrame,
+} from "@/lib/radar-source-selection";
+import { prepareRadarComposite, removeRadarComposite } from "@/lib/server/radar-composite";
+import type { RadarDataProvider } from "@/lib/types";
 
 import { copyFile, link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "fs/promises";
 import path from "path";
@@ -12,7 +19,6 @@ import { logRadarEvent } from "@/lib/server/radar-observability";
 import { readRadarMaintenanceState, writeRadarMaintenanceState } from "@/lib/server/radar-health-store";
 import {
   getCachedRenderedOperaFrame,
-  invalidateOperaTileCache,
   normalizeOperaTimestamp,
   operaCacheKey,
   operaCachedTileImagePath,
@@ -52,7 +58,7 @@ const MAX_CONCURRENT_PACK_BUILDS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CO
 const STALE_BUILD_DIR_MS = 60 * 60_000;
 
 export type ScanPackCoverage = { west: number; south: number; east: number; north: number };
-export type RadarPackProvider = "Météo-France" | "EUMETNET OPERA";
+export type RadarPackProvider = RadarDataProvider;
 
 export type ScanPackManifest = {
   timestamp: string;
@@ -78,19 +84,6 @@ export type ScanPackManifest = {
   packBytes?: number;
   buildDurationMs?: number;
   error?: string;
-};
-
-type RadarPackSourceFrame = {
-  timestamp: string;
-  provider: RadarPackProvider;
-  attribution: string;
-  sourceProduct: string;
-  sourceFormat: string;
-  nativeResolutionMeters: number | null;
-  displayFilter: string | null;
-  rainProbabilityThreshold: number | null;
-  sourceGridPath: string;
-  coverage: ScanPackCoverage;
 };
 
 export type ScanPackMaintenanceSnapshot = RadarMaintenanceState;
@@ -185,7 +178,7 @@ export async function mirrorPrewarmedDetailTilesIntoPacks(result: OperaTilePrewa
     if (!normalized) continue;
 
     const manifest = await readManifestFile(packManifestPath(normalized));
-    if (manifest?.status !== "ready") continue;
+    if (manifest?.status !== "ready" || manifest.style !== result.style) continue;
 
     for (const tile of item.readyTiles ?? []) {
       if (tile.z < PACK_DETAIL_ZOOM_MIN || tile.z > PACK_DETAIL_ZOOM_MAX) continue;
@@ -195,7 +188,7 @@ export async function mirrorPrewarmedDetailTilesIntoPacks(result: OperaTilePrewa
         .catch(() => false);
       if (alreadyMirrored) continue;
 
-      const source = operaCachedTileImagePath(normalized, tile.z, tile.x, tile.y, PACK_STYLE);
+      const source = operaCachedTileImagePath(normalized, tile.z, tile.x, tile.y, manifest.style);
       try {
         await mkdir(path.dirname(target), { recursive: true });
         await link(source, target).catch(() => copyFile(source, target));
@@ -253,7 +246,7 @@ export async function listReadyScanPacks(): Promise<ScanPackManifest[]> {
   return packs.filter(
     (pack) =>
       pack.status === "ready" &&
-      pack.style === PACK_STYLE &&
+      pack.style === radarSourceStyle(pack.provider) &&
       pack.packVersion === PACKS_VERSION &&
       pack.baseTileCount > 0 &&
       pack.coverage,
@@ -298,17 +291,6 @@ function meteoFranceFrameToPackSource(frame: MeteoFrancePreparedFrame): RadarPac
     sourceGridPath: frame.sourceGridPath,
     coverage: frame.coverage,
   };
-}
-
-function mergeSourceFrames(...groups: RadarPackSourceFrame[][]) {
-  const byTimestamp = new Map<string, RadarPackSourceFrame>();
-  for (const group of groups) {
-    for (const frame of group) {
-      const current = byTimestamp.get(frame.timestamp);
-      if (!current || frame.provider === "Météo-France") byTimestamp.set(frame.timestamp, frame);
-    }
-  }
-  return [...byTimestamp.values()].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
 async function getCachedOperaSourceFrame(timestamp: string): Promise<RadarPackSourceFrame | null> {
@@ -395,12 +377,13 @@ async function buildScanPack(sourceFrame: RadarPackSourceFrame): Promise<ScanPac
 async function buildScanPackInternal(sourceFrame: RadarPackSourceFrame): Promise<ScanPackManifest> {
   const startedAt = Date.now();
   const timestamp = sourceFrame.timestamp;
+  const style = radarSourceStyle(sourceFrame.provider);
   const key = operaCacheKey(timestamp);
 
   const published = await readManifestFile(packManifestPath(timestamp));
   if (
     published?.status === "ready" &&
-    published.style === PACK_STYLE &&
+    published.style === style &&
     published.packVersion === PACKS_VERSION &&
     published.provider === sourceFrame.provider &&
     published.baseTileCount > 0
@@ -408,15 +391,13 @@ async function buildScanPackInternal(sourceFrame: RadarPackSourceFrame): Promise
     return published;
   }
 
-  const coverage = sourceFrame.coverage;
-  const sourceGridPath = sourceFrame.sourceGridPath;
+  const composite = sourceFrame.fallback ? await prepareRadarComposite(sourceFrame) : null;
+  const coverage = composite?.bounds ?? sourceFrame.coverage;
+  const sourceGridPath = composite?.sourceGridPath ?? sourceFrame.sourceGridPath;
   const sourceGridExists = await stat(sourceGridPath)
     .then(() => true)
     .catch(() => false);
   if (!sourceGridExists) throw new Error(`Rendered radar source grid is missing: ${sourceGridPath}`);
-  if (sourceFrame.provider === "Météo-France" && published?.provider !== "Météo-France") {
-    await invalidateOperaTileCache(timestamp, PACK_STYLE);
-  }
 
   const jobs = operaOverviewTileJobsForBounds(coverage, PACK_OVERVIEW_ZOOM_MIN, PACK_OVERVIEW_ZOOM_MAX);
   if (!jobs.length) throw new Error("Rendered radar coverage produced no overview tile jobs.");
@@ -430,24 +411,24 @@ async function buildScanPackInternal(sourceFrame: RadarPackSourceFrame): Promise
       jobs,
       timestamp,
       outputRoot: buildRoot,
-      style: PACK_STYLE,
+      style,
     });
 
     // A pack may only be published once every required overview tile really exists.
-    const { count, bytes, missing } = await countExistingTiles(buildRoot, jobs, PACK_STYLE, key);
+    const { count, bytes, missing } = await countExistingTiles(buildRoot, jobs, style, key);
     if (missing.length > 0) {
       throw new Error(`Overview batch left ${missing.length}/${jobs.length} tiles missing.`);
     }
 
     const stagedPackDir = path.join(buildRoot, "pack");
     await mkdir(path.join(stagedPackDir, "detail"), { recursive: true });
-    await rename(path.join(buildRoot, "tiles", PACK_STYLE, key), path.join(stagedPackDir, "overview"));
+    await rename(path.join(buildRoot, "tiles", style, key), path.join(stagedPackDir, "overview"));
 
     const manifest: ScanPackManifest = {
       timestamp,
       status: "ready",
       publishedAt: nowIso(),
-      style: PACK_STYLE,
+      style,
       packVersion: PACKS_VERSION,
       tileSize: PACK_TILE_SIZE,
       baseZoomMin: PACK_OVERVIEW_ZOOM_MIN,
@@ -527,6 +508,7 @@ async function pruneScanPacks() {
 
     for (const pack of stale) {
       await rm(packDir(pack.timestamp), { recursive: true, force: true }).catch(() => undefined);
+      await removeRadarComposite(pack.timestamp).catch(() => undefined);
     }
 
     const buildEntries = await readdir(BUILDING_ROOT, { withFileTypes: true }).catch(() => []);
@@ -563,6 +545,12 @@ async function buildPacksForFrames(
       await buildScanPack(frame);
     } catch (error) {
       errors.push({ timestamp, error: sanitizePackError(error) });
+      // Keep a usable European scan if composing the national source fails.
+      if (frame.fallback) {
+        await buildScanPack(frame.fallback).catch((fallbackError) => {
+          errors.push({ timestamp, error: sanitizePackError(fallbackError) });
+        });
+      }
     } finally {
       runtimeState.maintenanceSnapshot.building = runtimeState.maintenanceSnapshot.building.filter(
         (item) => item !== timestamp,
@@ -599,7 +587,7 @@ async function runScanPackMaintenance() {
   await hydrateMaintenanceHistory();
 
   // Make the newest cached frame available immediately, even if both upstream APIs are down.
-  // Météo-France wins when both providers expose the same 5-minute timestamp.
+  // National observations and European coverage are combined at identical timestamps.
   const cachedMeteoFranceFrames = (await listCachedMeteoFranceFrames()).map(meteoFranceFrameToPackSource);
   const cachedOperaFrames = await listCachedOperaSourceFrames();
   const cachedFrames = mergeSourceFrames(cachedOperaFrames, cachedMeteoFranceFrames).slice(-MAX_KEPT_PACKS);
@@ -621,7 +609,7 @@ async function runScanPackMaintenance() {
     errors.push({ timestamp: "meteofrance", error: sanitizePackError(meteoFrance.error) });
   }
   await persistMaintenanceSnapshot("publishing-live");
-  await buildPacksForFrames(refreshedMeteoFranceFrames.slice(-1), errors);
+  await buildPacksForFrames(mergeSourceFrames(cachedOperaFrames, refreshedMeteoFranceFrames).slice(-1), errors);
 
   let readyOperaTimestamps: string[] = [];
   await persistMaintenanceSnapshot("discovering");
@@ -651,9 +639,11 @@ async function runScanPackMaintenance() {
         }
         await persistMaintenanceSnapshot("publishing-live");
         const meteoFranceFrame = refreshedMeteoFranceFrames.find((frame) => frame.timestamp === timestamp);
-        const operaFrame = meteoFranceFrame ? null : await getCachedOperaSourceFrame(timestamp);
+        const operaFrame = await getCachedOperaSourceFrame(timestamp);
         await buildPacksForFrames(
-          [meteoFranceFrame ?? operaFrame].filter((frame): frame is RadarPackSourceFrame => Boolean(frame)),
+          mergeSourceFrames(
+            [meteoFranceFrame, operaFrame].filter((frame): frame is RadarPackSourceFrame => Boolean(frame)),
+          ),
           errors,
         );
         await persistMaintenanceSnapshot("rendering-history");

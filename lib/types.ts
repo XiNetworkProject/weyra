@@ -128,7 +128,7 @@ export type OperaFrameManifest = {
 };
 
 export type OperaScanPackCoverage = { west: number; south: number; east: number; north: number };
-export type RadarDataProvider = "Météo-France" | "EUMETNET OPERA";
+export type RadarDataProvider = "Météo-France" | "EUMETNET OPERA" | "Météo-France + OPERA";
 
 export type OperaScanPackSummary = {
   timestamp: string;

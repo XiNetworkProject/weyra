@@ -54,3 +54,22 @@ blocks development radar endpoints, and rate-limits viewport prewarming.
 - The worker writes heartbeat and maintenance snapshots under the shared radar cache.
 - Logs are one-line JSON records suitable for `journalctl` collection.
 - `WEYRA_RADAR_ALERT_WEBHOOK_URL` optionally receives a payload when health changes.
+
+### Restoring the Météo-France connection
+
+The production credential belongs in `/etc/weyra/weyra.env`, outside releases and Git.
+Edit that file on the VM with `sudoedit /etc/weyra/weyra.env` and set
+`METEOFRANCE_APPLICATION_ID` to the application identifier supplied by the Météo-France
+API portal for the subscribed Package Radar API. Then run
+`sudo systemctl restart weyra.service weyra-radar.service`.
+Do not paste credentials into chat, frontend environment variables, logs, or this repository.
+
+Verify `/api/radar/meteofrance/status`: `ok` must be true, followed by a nonzero
+`cachedFramesReady` after the worker's next ingestion. `/api/radar/opera/packs` should then
+contain `Météo-France + OPERA` for matching observation times, with European coverage.
+The frontend change alone cannot supply a missing production credential.
+
+The composite chooses national valid pixels before color rendering. National dry and
+probability-filtered observations remain valid dry values; only missing coverage falls
+back to OPERA. Both sources must have exactly the same timestamp. There is no spatial
+super-resolution or averaging of potentially shared radar observations.

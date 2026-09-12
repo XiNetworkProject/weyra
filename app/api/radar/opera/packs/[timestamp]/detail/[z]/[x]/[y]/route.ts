@@ -1,10 +1,10 @@
+import { radarProviderHeader } from "@/lib/radar-source-selection";
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import { operaCachedTileImagePath } from "@/lib/server/opera-render";
 import {
   PACK_DETAIL_ZOOM_MAX,
   PACK_DETAIL_ZOOM_MIN,
-  PACK_STYLE,
   getScanPackManifest,
   packDetailTilePath,
 } from "@/lib/server/opera-packs";
@@ -49,20 +49,25 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const manifest = await getScanPackManifest(timestamp);
     if (manifest?.status !== "ready") return notFound();
+    if (
+      new URL(_request.url).searchParams.has("style") &&
+      new URL(_request.url).searchParams.get("style") !== manifest.style
+    )
+      return notFound();
     // Primary storage: the active scan pack itself (packs/<version>/<ts>/detail/z/x/y.webp). The shared tile
     // cache stays as a read-only fallback for tiles prewarmed before the pack was published.
     const image = await readFile(packDetailTilePath(timestamp, z, x, y)).catch(() =>
-      readFile(operaCachedTileImagePath(timestamp, z, x, y, PACK_STYLE)),
+      readFile(operaCachedTileImagePath(timestamp, z, x, y, manifest.style)),
     );
     return new Response(new Uint8Array(image), {
       status: 200,
       headers: {
         "Content-Type": "image/webp",
         "Cache-Control": "public, max-age=31536000, immutable",
-        "X-Weyra-Radar-Provider": manifest.provider === "Météo-France" ? "METEO-FRANCE" : "EUMETNET-OPERA",
+        "X-Weyra-Radar-Provider": radarProviderHeader(manifest.provider),
         "X-Weyra-Radar-Product": "DBZH",
         "X-Weyra-Radar-Projection": "EPSG-3857",
-        "X-Weyra-Radar-Style": PACK_STYLE,
+        "X-Weyra-Radar-Style": manifest.style,
         "X-Weyra-Radar-Pack-Layer": "detail",
         "X-Weyra-Tile-Cache": "pack-hit",
       },

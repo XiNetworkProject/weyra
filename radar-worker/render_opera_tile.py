@@ -180,6 +180,8 @@ DISPLAY_CONFIGS = {
     "v3c": WEYRA_DBZH_DISPLAY_V3C,
     "v4a": WEYRA_DBZH_DISPLAY_V4A,
     "v5": WEYRA_DBZH_DISPLAY_V5,
+    "v5-mf": WEYRA_DBZH_DISPLAY_V5,
+    "v5-mf-opera": WEYRA_DBZH_DISPLAY_V5,
 }
 
 # Versions that use the smooth, coverage-feathered, strong-echo-preserving pipeline.

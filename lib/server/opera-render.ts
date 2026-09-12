@@ -1,4 +1,5 @@
 import "server-only";
+import { getCachedRadarComposite } from "@/lib/server/radar-composite";
 
 import { spawn } from "child_process";
 import { createHash } from "crypto";
@@ -26,7 +27,7 @@ const TILE_JOB_DIR = path.join(RADAR_CACHE_ROOT, "tile-jobs");
 const QA_DIR = path.join(RADAR_CACHE_ROOT, "qa");
 const METEOGATE_HOST = "api.meteogate.eu";
 export const TILE_RENDER_VERSION = "v5";
-const SUPPORTED_TILE_RENDER_VERSIONS = ["v1", "v2", "v3", "v3b", "v3c", "v4a", "v5"] as const;
+const SUPPORTED_TILE_RENDER_VERSIONS = ["v1", "v2", "v3", "v3b", "v3c", "v4a", "v5", "v5-mf", "v5-mf-opera"] as const;
 const MAX_CACHED_FRAMES = 18;
 const MAX_CONCURRENT_RENDERS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CONCURRENT_RENDERS", 2, 4);
 const MAX_CONCURRENT_TILE_RENDERS = readBoundedPositiveIntEnv("WEYRA_RADAR_MAX_CONCURRENT_TILE_RENDERS", 2, 4);
@@ -1464,8 +1465,9 @@ async function pruneTileCache() {
   }
 }
 
-async function getPreferredRadarTileSource(timestamp: string) {
-  const meteoFranceFrame = await getCachedMeteoFranceFrame(timestamp);
+async function getPreferredRadarTileSource(timestamp: string, version: OperaTileRenderVersion) {
+  if (version === "v5-mf-opera") return getCachedRadarComposite(timestamp);
+  const meteoFranceFrame = version === "v5-mf" ? await getCachedMeteoFranceFrame(timestamp) : null;
   if (meteoFranceFrame) {
     return {
       sourceGridPath: meteoFranceFrame.sourceGridPath,
@@ -1474,6 +1476,7 @@ async function getPreferredRadarTileSource(timestamp: string) {
     };
   }
 
+  if (version === "v5-mf") return null;
   const operaFrame = await readCachedFrame(timestamp);
   if (!operaFrame) return null;
   return {
@@ -1518,7 +1521,7 @@ async function prewarmTimestampTiles(
     requested: jobs.length,
   });
 
-  const source = await getPreferredRadarTileSource(timestamp);
+  const source = await getPreferredRadarTileSource(timestamp, version);
   if (!source) {
     return {
       timestamp,
@@ -1664,7 +1667,7 @@ export async function getOrCreateOperaTile(input: {
   if (existing) return existing;
 
   const pending = (async () => {
-    const source = await getPreferredRadarTileSource(timestamp);
+    const source = await getPreferredRadarTileSource(timestamp, version);
     if (!source) {
       throw new OperaTileError("Radar frame is not ready in the local Weyra cache.", 404);
     }

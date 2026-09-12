@@ -65,7 +65,7 @@ export type RadarHealthInput = {
   cacheWritable: boolean;
   newestPackTimestamp: string | null;
   newestPackPublishedAt: string | null;
-  newestPackProvider?: "Météo-France" | "EUMETNET OPERA" | null;
+  newestPackProvider?: "Météo-France" | "EUMETNET OPERA" | "Météo-France + OPERA" | null;
   newestPackAttribution?: string | null;
   newestPackCoverage?: { west: number; south: number; east: number; north: number } | null;
   newestPackResolutionMeters?: number | null;
@@ -85,7 +85,7 @@ export type RadarHealthReport = {
     timestamp: string | null;
     publishedAt: string | null;
     ageSeconds: number | null;
-    provider: "Météo-France" | "EUMETNET OPERA" | null;
+    provider: "Météo-France" | "EUMETNET OPERA" | "Météo-France + OPERA" | null;
     attribution: string | null;
     coverage: { west: number; south: number; east: number; north: number } | null;
     nativeResolutionMeters: number | null;

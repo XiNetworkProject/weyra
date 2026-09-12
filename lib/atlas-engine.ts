@@ -197,10 +197,17 @@ async function vectorEngine(
       return () => map.off("moveend", fn);
     },
     radarFrames: (next) => {
+      const previous = new Map(frames.map((f) => [f.time, f.tiles]));
+      detail.cancel();
       frames = next;
       const keep = new Set(next.map((f) => "radar-" + f.time));
       for (const f of next) {
         const id = "radar-" + f.time;
+        if (ids.has(id) && previous.get(f.time) !== f.tiles) {
+          map.removeLayer(id);
+          map.removeSource(id);
+          ids.delete(id);
+        }
         if (!ids.has(id)) {
           addSource(id, f);
           ids.add(id);
@@ -351,12 +358,19 @@ async function rasterEngine(
       return () => map.off("moveend", fn);
     },
     radarFrames: (next) => {
+      const previous = new Map(frames.map((f) => [f.time, f.tiles]));
+      detail.cancel();
       frames = next;
-      for (const f of next)
+      for (const f of next) {
+        if (layers.has(f.time) && previous.get(f.time) !== f.tiles) {
+          layers.get(f.time)?.remove();
+          layers.delete(f.time);
+        }
         if (!layers.has(f.time)) {
           const layer = L.tileLayer(f.tiles, options(f)).on("tileerror", onRadarError).addTo(map);
           layers.set(f.time, layer);
         }
+      }
       for (const [time, layer] of layers)
         if (!next.some((f) => f.time === time)) {
           layer.remove();

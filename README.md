@@ -19,7 +19,9 @@
 
 ## Point honnête sur le radar
 
-Météo-France est maintenant la source primaire officielle sur la France métropolitaine. Le worker télécharge le Package Radar, décode la mosaïque `IMFR27` BUFR, conserve la réflectivité DBZH brute et produit les tuiles Web Mercator utilisées par Atlas. Le masque de probabilité de pluie fourni dans le produit est appliqué uniquement à l'affichage afin d'écarter les échos non météorologiques faibles. EUMETNET OPERA reste disponible pour l'Europe et comme repli si Météo-France est temporairement indisponible.
+Le radar compose les relevés DBZH de Météo-France et d’EUMETNET OPERA lorsqu’ils ont exactement le même horodatage. La mosaïque nationale `IMFR27` est prioritaire sur ses pixels valides ; OPERA complète les pixels sans donnée et la couverture européenne. Un pixel national sec ou écarté par le filtre de probabilité de pluie reste sec : il n’est pas remplacé par un écho OPERA. Les intensités ne sont ni additionnées ni moyennées. Les grilles sont alignées sur la grille européenne, à sa résolution native, sans prétendre créer de détails supplémentaires.
+
+Chaque source reste utilisable seule si l’autre est indisponible. Les caches des tuiles OPERA, Météo-France et combinées sont distincts ; Atlas renouvelle les couches lorsqu’une mosaïque combinée remplace un scan déjà affiché. L’attribution indique les sources présentes dans le scan. La combinaison ne sera disponible en production qu’après configuration et validation de l’accès Météo-France.
 
 La production doit configurer `METEOFRANCE_APPLICATION_ID` côté serveur pour renouveler automatiquement le jeton OAuth horaire. Un `METEOFRANCE_ACCESS_TOKEN` manuel n'est qu'un secours local temporaire. Aucun identifiant fournisseur, jeton, paquet BUFR ou URL amont n'est envoyé au navigateur.
 

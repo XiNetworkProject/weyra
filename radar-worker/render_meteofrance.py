@@ -22,13 +22,33 @@ PRODUCT_PATTERN = re.compile(
     r"(?:^|/)T_IMFR27_C_LFPW_(?P<timestamp>\d{14})\.bufr\.gz$"
 )
 SOURCE_GRID_NODATA = -9999.0
-RENDER_VERSION = "meteofrance-v2"
+RENDER_VERSION = "meteofrance-v3"
 RAIN_PROBABILITY_DISPLAY_THRESHOLD = 0.25
 SOURCE_PROJECTION = (
     "+proj=stere +lat_0=90 +lon_0=0 +lat_ts=45 "
     "+ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 )
 SOURCE_CRS = CRS.from_proj4(SOURCE_PROJECTION)
+
+
+def prepare_display_grids(raw, probability, nodata: float, undetect_dbzh: float):
+    raw_grid = np.asarray(raw).copy()
+    missing = (~np.isfinite(raw_grid)) | (raw_grid == nodata)
+    undetect = raw_grid == undetect_dbzh
+    # Valid dry observations must remain distinct from missing coverage.
+    raw_grid[missing] = SOURCE_GRID_NODATA
+    raw_grid[undetect & ~missing] = -32.0
+    grid = raw_grid.copy()
+    if probability is not None:
+        probability_values = np.asarray(probability)
+        rejected_by_probability = (
+            (~np.isfinite(probability_values))
+            | (probability_values == nodata)
+            | (probability_values < RAIN_PROBABILITY_DISPLAY_THRESHOLD)
+        )
+        # Preserve national coverage when the display filter removes clutter.
+        grid[rejected_by_probability & ~missing] = -32.0
+    return raw_grid, grid
 
 
 def utc_now() -> str:
@@ -161,19 +181,11 @@ def render_frame(
             float(decoded["topLeftLatitude"]),
         )
         transform = from_origin(top_left_x, top_left_y, pixel_size_x, pixel_size_y)
-        raw_grid = np.asarray(raw).copy()
-        missing = (~np.isfinite(raw_grid)) | (raw_grid == float(decoded["nodata"]))
-        undetect = raw_grid == float(decoded["undetectDbzh"])
-        raw_grid[missing | undetect] = SOURCE_GRID_NODATA
-        grid = raw_grid.copy()
+        raw_grid, grid = prepare_display_grids(
+            raw, probability, float(decoded["nodata"]), float(decoded["undetectDbzh"])
+        )
         if probability is not None:
             probability_values = np.asarray(probability)
-            rejected_by_probability = (
-                (~np.isfinite(probability_values))
-                | (probability_values == float(decoded["nodata"]))
-                | (probability_values < RAIN_PROBABILITY_DISPLAY_THRESHOLD)
-            )
-            grid[rejected_by_probability] = SOURCE_GRID_NODATA
 
         profile = {
             "driver": "GTiff",

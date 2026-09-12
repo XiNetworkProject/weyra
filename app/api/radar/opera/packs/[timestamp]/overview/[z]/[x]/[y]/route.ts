@@ -1,3 +1,5 @@
+import { radarProviderHeader } from "@/lib/radar-source-selection";
+import type { RadarDataProvider } from "@/lib/types";
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import {
@@ -21,14 +23,14 @@ type RouteContext = {
 const TRANSPARENT_TILE = Buffer.from("UklGRiIAAABXRUJQVlA4TBUAAAAv/8A/EAcQEREAUKT//ymi/6n//QcA", "base64");
 const LEGACY_OVERVIEW_ZOOM_MAX = 7;
 
-function immutableHeaders(provider: "Météo-France" | "EUMETNET OPERA" | undefined) {
+function immutableHeaders(provider: RadarDataProvider | undefined, style: string) {
   return {
     "Content-Type": "image/webp",
     "Cache-Control": "public, max-age=31536000, immutable",
-    "X-Weyra-Radar-Provider": provider === "Météo-France" ? "METEO-FRANCE" : "EUMETNET-OPERA",
+    "X-Weyra-Radar-Provider": radarProviderHeader(provider),
     "X-Weyra-Radar-Product": "DBZH",
     "X-Weyra-Radar-Projection": "EPSG-3857",
-    "X-Weyra-Radar-Style": PACK_STYLE,
+    "X-Weyra-Radar-Style": style,
     "X-Weyra-Radar-Pack-Layer": "overview",
   } as const;
 }
@@ -65,7 +67,12 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const manifest = await getScanPackManifest(timestamp);
-  const headers = immutableHeaders(manifest?.provider);
+  if (
+    new URL(_request.url).searchParams.has("style") &&
+    new URL(_request.url).searchParams.get("style") !== manifest?.style
+  )
+    return notFound();
+  const headers = immutableHeaders(manifest?.provider, manifest?.style ?? PACK_STYLE);
   try {
     const image = await readFile(packOverviewTilePath(timestamp, z, x, y));
     return new Response(new Uint8Array(image), {

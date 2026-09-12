@@ -297,6 +297,7 @@ function metadataToFrame(metadata: MeteoFranceFrameMetadata): MeteoFrancePrepare
   if (
     !timestamp ||
     metadata.provider !== "Météo-France" ||
+    metadata.renderVersion !== "meteofrance-v3" ||
     metadata.quantity !== "DBZH" ||
     metadata.tileReady !== true ||
     !Array.isArray(bounds) ||
