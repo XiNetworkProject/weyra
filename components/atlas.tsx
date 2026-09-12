@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { createAtlasPresentation } from "@/lib/atlas-presentation";
 import { createAtlas, type AtlasEngine } from "@/lib/atlas-engine";
 import { radarFramesFromPacks, radarTimelineReducer } from "@/lib/horizon-radar";
 import { weatherCodeInfo } from "@/lib/weather";
@@ -108,6 +109,31 @@ export default function Atlas({
     [weatherExpanded, setWeatherExpanded] = useState(false),
     [filter, setFilter] = useState("Tout"),
     [spotlight, setSpotlight] = useState(0);
+  const [compact, setCompact] = useState(false);
+  const [presentation] = useState(() => createAtlasPresentation(setCompact));
+  useEffect(() => {
+    presentation.activate(active);
+    if (!active) setPlaying(false);
+  }, [active, presentation]);
+  useEffect(() => {
+    presentation.playback(playing);
+  }, [playing, presentation]);
+  useEffect(() => {
+    const release = (event: PointerEvent) => presentation.pointerUp(event.pointerId);
+    const blur = () => presentation.releasePointers();
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", blur);
+      presentation.destroy();
+    };
+  }, [presentation, active]);
+  const isExploration = (target: EventTarget) =>
+    target instanceof Element &&
+    !!target.closest(".map-canvas, .radar-timeline, .map-tools-bottom, .atlas-right-controls");
   const [timeline, dispatchTimeline] = useReducer(radarTimelineReducer, { frames: [], index: 0 });
   const { frames, index: frame } = timeline;
   const setFrame = (index: number) => dispatchTimeline({ type: "select", index });
@@ -314,7 +340,48 @@ export default function Atlas({
     );
   }
   return (
-    <section className="atlas-scene" aria-label="Atlas, carte météo interactive">
+    <section
+      className={"atlas-scene" + (compact ? " atlas-is-compact" : "")}
+      aria-label="Atlas, carte météo interactive"
+      onPointerDownCapture={(event) => {
+        if (isExploration(event.target)) presentation.pointerDown(event.pointerId);
+      }}
+      onWheelCapture={(event) => {
+        if (isExploration(event.target)) presentation.interact();
+      }}
+      onKeyDownCapture={(event) => {
+        if (
+          isExploration(event.target) &&
+          ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "+", "-", "=", " ", "Enter", "Home", "End"].includes(
+            event.key,
+          )
+        )
+          presentation.interact();
+      }}
+    >
+      <button
+        className="atlas-mini glass"
+        aria-label="Agrandir les informations météo"
+        aria-expanded={!compact}
+        aria-hidden={!compact}
+        inert={!compact}
+        onClick={() => {
+          presentation.expand();
+          requestAnimationFrame(() =>
+            host.current?.parentElement
+              ?.querySelector<HTMLButtonElement>(".weather-heading")
+              ?.focus({ preventScroll: true }),
+          );
+        }}
+      >
+        <Cloud size={23} strokeWidth={1.4} />
+        <span>
+          <strong>{place.name}</strong>
+          <small>{weather?.current ? weatherLabel(weather.current.weather_code) : "Votre horizon"}</small>
+        </span>
+        <b>{weather?.current ? Math.round(weather.current.temperature_2m) + "°" : "—"}</b>
+        <Maximize2 size={15} />
+      </button>
       <div className="map-canvas" ref={host} />
       <div className="atlas-vignette" aria-hidden="true" />
       {!loaded && (
@@ -329,7 +396,7 @@ export default function Atlas({
           {mapError && <button onClick={() => setRetry((r) => r + 1)}>Réessayer</button>}
         </div>
       )}
-      <div className="atlas-context">
+      <div className="atlas-context" inert={compact} aria-hidden={compact}>
         <div className="atlas-kicker">
           <span className="signal-dot" />
           L’ATLAS DES REGARDS
@@ -353,7 +420,7 @@ export default function Atlas({
           ))}
         </div>
       </div>
-      <div className={"weather-float " + (weatherExpanded ? "expanded" : "")}>
+      <div className={"weather-float " + (weatherExpanded ? "expanded" : "")} inert={compact} aria-hidden={compact}>
         <button
           className="weather-heading"
           aria-expanded={weatherExpanded}
@@ -458,7 +525,7 @@ export default function Atlas({
         )}
       </div>
       {featured && (
-        <aside className="atlas-moment">
+        <aside className="atlas-moment" inert={compact} aria-hidden={compact}>
           <button className="moment-image" onClick={() => onImmersion(spotlight)}>
             <img src={featured.image || "/images/clouds.jpg"} alt={featured.title} key={featured.id} />
             <span>
