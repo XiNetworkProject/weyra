@@ -315,6 +315,14 @@ def prepare(cache, budget):
         tasks.append(("reflectivity", timestamps[0], None))
     if latest_amount:
         tasks.extend((f"accumulation-{m//60}h", latest_amount, m) for m in (60, 180))
+    # A full European reflectivity render can consume most of the cycle budget
+    # on ARM. Give unpublished / least-recently-published live products priority,
+    # so incoming scans cannot indefinitely starve a complete rainfall window.
+    def last_publication(task):
+        return max((m.get("publishedAt", "")
+                    for p in (root / task[0]).glob("*/manifest.json")
+                    if (m := read_json(p))), default="")
+    tasks.sort(key=last_publication)
     tasks.extend(("reflectivity", t, None) for t in timestamps[1:])
     for product, timestamp, minutes in tasks:
         if time.monotonic() > deadline:
