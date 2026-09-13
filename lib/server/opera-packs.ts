@@ -5,6 +5,7 @@ import {
   type RadarPackSourceFrame,
 } from "@/lib/radar-source-selection";
 import { prepareRadarComposite, removeRadarComposite } from "@/lib/server/radar-composite";
+import { prepareRadarLayers } from "@/lib/server/radar-layers";
 import type { RadarDataProvider } from "@/lib/types";
 
 import { copyFile, link, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "fs/promises";
@@ -676,6 +677,18 @@ async function runScanPackMaintenance() {
   );
   runtimeState.maintenanceSnapshot.scansDetected = allFrames.length;
   await buildPacksForFrames(allFrames, errors);
+
+  try {
+    const layers = await prepareRadarLayers();
+    logRadarEvent(layers.errors.length ? "warn" : "info", "radar_layers_prepared", {
+      errors: layers.errors,
+      packCount: Object.values(layers.packs).reduce((sum, count) => sum + count, 0),
+    });
+  } catch {
+    logRadarEvent("warn", "radar_layers_failed", {
+      note: "Optional layer preparation failed; live radar remains available.",
+    });
+  }
 
   await persistMaintenanceSnapshot("pruning");
   await pruneScanPacks();

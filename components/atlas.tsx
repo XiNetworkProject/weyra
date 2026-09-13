@@ -29,6 +29,13 @@ import { Switch } from "@/components/ui/switch";
 import { createAtlasPresentation } from "@/lib/atlas-presentation";
 import { createAtlas, type AtlasEngine } from "@/lib/atlas-engine";
 import { radarFramesFromPacks, radarTimelineReducer } from "@/lib/horizon-radar";
+import {
+  radarFramesFromLayer,
+  radarProductInfo,
+  type RadarProduct,
+  type RadarLayerCatalog,
+  type RadarLayerState,
+} from "@/lib/radar-layers";
 import { weatherCodeInfo } from "@/lib/weather";
 import type { OperaScanPackListResponse } from "@/lib/types";
 import type { Observation } from "@/lib/content";
@@ -110,6 +117,11 @@ export default function Atlas({
     [filter, setFilter] = useState("Tout"),
     [spotlight, setSpotlight] = useState(0);
   const [compact, setCompact] = useState(false);
+  const [product, setProduct] = useState<RadarProduct>("precipitation");
+  const productRef = useRef<RadarProduct>("precipitation");
+  const [layerState, setLayerState] = useState<RadarLayerState | null>(null);
+  const productInfo = radarProductInfo(product);
+  const accumulation = product.startsWith("accumulation");
   const [presentation] = useState(() => createAtlasPresentation(setCompact));
   useEffect(() => {
     presentation.activate(active);
@@ -140,7 +152,30 @@ export default function Atlas({
   const [radarPending, setRadarPending] = useState(true),
     [checkedAt, setCheckedAt] = useState(0);
   const shownFrame = frames[frame];
-  const provider = shownFrame?.provider || "Météo-France / OPERA";
+  const provider = shownFrame?.provider || (accumulation ? "Météo-France" : "Météo-France / OPERA");
+  const accumulationMinutes = product === "accumulation-1h" ? 60 : 180;
+  const incomplete = accumulation && layerState && layerState.receivedSamples < (layerState.expectedSamples ?? 1);
+  const layerNotice = accumulation
+    ? incomplete
+      ? `Historique incomplet : ${layerState.receivedSamples * 5} min reçues sur ${accumulationMinutes / 60} h.${frames.length ? " Dernier cumul complet affiché." : ""}`
+      : "France métropolitaine · zones sans mesure complète transparentes."
+    : product === "reflectivity"
+      ? "Échos radar bruts : les échos faibles ne correspondent pas tous à de la pluie au sol."
+      : "";
+  function selectProduct(next: RadarProduct) {
+    if (next === productRef.current) return;
+    productRef.current = next;
+    engine.current?.radarFrame(null, 0, false);
+    engine.current?.radarFrames([]);
+    dispatchTimeline({ type: "load", frames: [] });
+    setPlaying(false);
+    setLayerState(null);
+    setRadarError(false);
+    setRadarPending(true);
+    setRadar(true);
+    setProduct(next);
+    presentation.interact();
+  }
   const age = frames.length ? Math.max(0, Math.round((checkedAt / 1000 - frames[frames.length - 1].time) / 60)) : 0;
   const visibleItems = items.filter((o) => (showDemo || !o.demo) && (filter === "Tout" || o.phenomenon === filter));
   const featured = items[spotlight % Math.max(items.length, 1)];
@@ -270,21 +305,29 @@ export default function Atlas({
     const abort = new AbortController();
     const update = async () => {
       try {
-        const response = await fetch("/api/radar/opera/packs", {
+        const response = await fetch(product === "precipitation" ? "/api/radar/opera/packs" : "/api/radar/layers", {
           cache: "no-store",
           signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10000)]),
         });
         if (!response.ok) throw Error();
-        const data: OperaScanPackListResponse = await response.json();
-        if (abort.signal.aborted || !engine.current) return;
-        const next = radarFramesFromPacks(data);
+        const data: OperaScanPackListResponse | RadarLayerCatalog = await response.json();
+        if (abort.signal.aborted || productRef.current !== product || !engine.current) return;
+        const next =
+          product === "precipitation"
+            ? radarFramesFromPacks(data as OperaScanPackListResponse)
+            : radarFramesFromLayer(data as RadarLayerCatalog, product);
+        const pending =
+          product === "precipitation"
+            ? !!(data as OperaScanPackListResponse).maintenance?.running
+            : !(data as RadarLayerCatalog).errors.length;
+        setLayerState(product === "precipitation" ? null : ((data as RadarLayerCatalog).layers[product] ?? null));
         engine.current.radarFrames(next);
         dispatchTimeline({ type: "load", frames: next });
         setCheckedAt(Date.now());
-        setRadarPending(!next.length && !!data.maintenance?.running);
-        setRadarError(!next.length && !data.maintenance?.running);
+        setRadarPending(!next.length && pending);
+        setRadarError(!next.length && !pending);
       } catch {
-        if (!abort.signal.aborted) {
+        if (!abort.signal.aborted && productRef.current === product) {
           setRadarError(true);
           setRadarPending(false);
         }
@@ -300,7 +343,7 @@ export default function Atlas({
       abort.abort();
       clearInterval(timer);
     };
-  }, [loaded]);
+  }, [loaded, product]);
   useEffect(() => {
     engine.current?.radarFrame(radar ? (frames[frame]?.time ?? null) : null, opacity / 100, playing);
   }, [frames, frame, radar, opacity, playing]);
@@ -490,12 +533,44 @@ export default function Atlas({
                 <X size={15} />
               </button>
             </div>
+            <div className="radar-product-picker" role="group" aria-label="Type de radar">
+              {(["precipitation", "reflectivity", "accumulation-1h"] as const).map((choice) => {
+                const info = radarProductInfo(choice);
+                const selected = choice === "accumulation-1h" ? accumulation : product === choice;
+                return (
+                  <button
+                    key={choice}
+                    className={"radar-product-option " + (selected ? "selected" : "")}
+                    aria-pressed={selected}
+                    onClick={() => selectProduct(choice)}
+                  >
+                    <span className={"product-swatch " + choice} aria-hidden="true" />
+                    <span>
+                      <b>{info.title}</b>
+                      <small>{info.description}</small>
+                    </span>
+                    <span className="product-unit">{choice === "precipitation" ? "LIVE" : info.unit}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {accumulation && (
+              <div className="accumulation-period" role="group" aria-label="Durée du cumul">
+                <span>Sur les dernières</span>
+                <button aria-pressed={product === "accumulation-1h"} onClick={() => selectProduct("accumulation-1h")}>
+                  1 h
+                </button>
+                <button aria-pressed={product === "accumulation-3h"} onClick={() => selectProduct("accumulation-3h")}>
+                  3 h
+                </button>
+              </div>
+            )}
             <label>
               <span>
                 <CloudRain size={16} />
-                Radar
+                Afficher la couche
               </span>
-              <Switch checked={radar} onCheckedChange={setRadar} />
+              <Switch aria-label="Afficher la couche radar" checked={radar} onCheckedChange={setRadar} />
             </label>
             <label>
               <span>
@@ -520,7 +595,7 @@ export default function Atlas({
                 aria-label="Opacité radar"
               />
             </div>
-            <p>Scans réels · {provider}.</p>
+            <p>{layerNotice || `Scans réels · ${provider}.`}</p>
           </div>
         )}
       </div>
@@ -582,14 +657,16 @@ export default function Atlas({
         <div className="radar-heading">
           <span>
             <RadioGlyph />
-            RADAR DES PRÉCIPITATIONS
+            {productInfo.heading}
           </span>
-          <button onClick={onSources}>
+          <button onClick={onSources} aria-live="polite">
             <span className={"radar-status " + (radarError ? "unavailable" : "")} />
             {radarError
               ? "Indisponible"
               : radarPending
-                ? "Préparation…"
+                ? accumulation
+                  ? "Historique en cours…"
+                  : "Préparation…"
                 : age > 20
                   ? "Dernier scan : " + age + " min"
                   : "Images passées"}
@@ -600,7 +677,7 @@ export default function Atlas({
           <button
             className={"play-button " + (playing ? "is-playing" : "")}
             aria-label={playing ? "Mettre en pause" : "Lire les images radar"}
-            disabled={!frames.length}
+            disabled={frames.length < 2}
             onClick={() => {
               setRadar(true);
               setPlaying(!playing);
@@ -610,16 +687,26 @@ export default function Atlas({
           </button>
           <div className="timeline-track">
             <div className="timeline-labels">
-              <span>{frames.length ? clock(frames[0].time) : "—"}</span>
+              <span>
+                {frames.length
+                  ? clock(accumulation ? frames[frame].time - accumulationMinutes * 60 : frames[0].time)
+                  : "—"}
+              </span>
               <strong>{frames[frame] ? clock(frames[frame].time) : "—"}</strong>
-              <span>{frames.length ? clock(frames[frames.length - 1].time) : "—"}</span>
+              <span>
+                {accumulation
+                  ? `${accumulationMinutes / 60} h`
+                  : frames.length
+                    ? clock(frames[frames.length - 1].time)
+                    : "—"}
+              </span>
             </div>
             <Slider
               min={0}
               max={Math.max(frames.length - 1, 1)}
               step={1}
               value={[frame]}
-              disabled={!frames.length}
+              disabled={frames.length < 2}
               onValueChange={(v) => {
                 setFrame(v[0]);
                 setPlaying(false);
@@ -644,11 +731,28 @@ export default function Atlas({
           </button>
         </div>
         <div className="timeline-foot">
-          <span>
-            Faibles <i className="rain-scale" /> Fortes
-          </span>
+          {product === "precipitation" ? (
+            <span>
+              Faibles <i className="rain-scale" /> Fortes
+            </span>
+          ) : (
+            <div className="radar-product-legend" aria-label={`Échelle en ${productInfo.unit}`}>
+              <i style={{ background: productInfo.gradient }} />
+              <div>
+                {productInfo.labels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+                <b>{productInfo.unit}</b>
+              </div>
+            </div>
+          )}
           <span>{provider} · heure de Paris</span>
         </div>
+        {layerNotice && (
+          <p className="radar-layer-notice" aria-live="polite">
+            {layerNotice}
+          </p>
+        )}
       </div>
       <div className="map-attribution">
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">

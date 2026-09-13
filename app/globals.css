@@ -6042,3 +6042,154 @@ button {
     transition: none !important;
   }
 }
+
+/* Scientific radar layers share the Atlas glass and motion language. */
+.layers-panel {
+  width: min(320px, calc(100vw - 36px));
+  max-height: calc(100dvh - 230px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.radar-product-picker {
+  display: grid;
+  gap: 7px;
+}
+.radar-product-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 11px;
+  text-align: left;
+  padding: 12px 10px;
+  border: 1px solid #ffffff12;
+  border-radius: 12px;
+  background: #ffffff03;
+  color: #a6bbc7;
+  transition:
+    border-color 180ms,
+    background 180ms,
+    transform 180ms;
+}
+.radar-product-option:hover {
+  background: #b0e7d90a;
+  transform: translateX(2px);
+}
+.radar-product-option.selected {
+  background: linear-gradient(115deg, #a7e6d318, #a4cdef05);
+  border-color: #a5e8d568;
+  color: #e2f5ed;
+}
+.radar-product-option:focus-visible,
+.accumulation-period button:focus-visible {
+  outline: 2px solid #b5ead7;
+  outline-offset: 3px;
+}
+.radar-product-option b,
+.radar-product-option small {
+  display: block;
+}
+.radar-product-option b {
+  font-size: 12px;
+  font-weight: 500;
+}
+.radar-product-option small {
+  font-size: 9px;
+  margin-top: 4px;
+  color: #91aebb;
+}
+.product-swatch {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #c6f9df, #69bba4 45%, #174f6677);
+  box-shadow: 0 0 15px #9ce8d326;
+}
+.product-swatch.reflectivity {
+  background: conic-gradient(#53c8de, #bae37c, #f3ac5a, #d56abe, #53c8de);
+}
+.product-swatch.accumulation-1h {
+  background: linear-gradient(155deg, #42c9df, #79d2a5 40%, #deb676 65%, #a56bcb);
+}
+.product-unit {
+  margin-left: auto;
+  font-size: 8px;
+  letter-spacing: 0.6px;
+  opacity: 0.7;
+}
+.accumulation-period {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 0 2px;
+  font-size: 10px;
+  animation: panel-arrive 200ms both;
+}
+.accumulation-period > span {
+  margin-right: auto;
+  color: #9eb7c1;
+}
+.accumulation-period button {
+  padding: 8px 14px;
+  border: 1px solid #ffffff1a;
+  border-radius: 8px;
+  transition: background 180ms;
+}
+.accumulation-period button[aria-pressed="true"] {
+  background: #b4ebd922;
+  border-color: #b4ebd977;
+  color: #d6f3e7;
+}
+.radar-product-legend {
+  flex: 1;
+  max-width: 210px;
+  min-width: 100px;
+  margin-right: 12px;
+}
+.radar-product-legend > i {
+  display: block;
+  height: 5px;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+.radar-product-legend > div {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  font-size: 8px;
+}
+.radar-product-legend b {
+  position: absolute;
+  right: -25px;
+  font-weight: 400;
+}
+.radar-layer-notice {
+  font-size: 9px;
+  line-height: 1.5;
+  color: #aac3cb;
+  margin: 10px 0 0;
+  max-width: 100%;
+}
+@media (max-width: 640px) {
+  .layers-panel {
+    width: min(300px, calc(100vw - 36px));
+    max-height: calc(100dvh - 250px);
+    padding: 17px;
+  }
+  .radar-product-legend {
+    max-width: 150px;
+  }
+  .radar-layer-notice {
+    font-size: 8px;
+    margin-top: 7px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .radar-product-option,
+  .accumulation-period,
+  .accumulation-period button {
+    animation: none;
+    transition: none;
+  }
+}

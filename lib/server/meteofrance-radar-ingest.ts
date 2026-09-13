@@ -16,7 +16,7 @@ export const METEOFRANCE_FRAME_ROOT = path.join(METEOFRANCE_ROOT, "frames");
 const PACKAGE_STATE_PATH = path.join(METEOFRANCE_ROOT, "latest-package.json");
 const MAX_PACKAGE_BYTES = 64 * 1024 * 1024;
 const RENDER_TIMEOUT_MS = 120_000;
-const MAX_KEPT_PACKAGES = 8;
+const MAX_KEPT_PACKAGES = 16;
 const MAX_KEPT_FRAMES = 18;
 
 export type MeteoFranceFrameMetadata = {

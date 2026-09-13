@@ -158,7 +158,7 @@ async function vectorEngine(
   };
   const detail = detailController(async (abort) => {
     const frame = frames.find((f) => f.time === current);
-    if (!frame || playing || opacity === 0 || map.getZoom() < frame.detailMinZoom) return;
+    if (!frame || !frame.detailTiles || playing || opacity === 0 || map.getZoom() < frame.detailMinZoom) return;
     const b = map.getBounds();
     await prepareRadarDetail(
       frame,
@@ -318,7 +318,7 @@ async function rasterEngine(
   });
   const detail = detailController(async (abort) => {
     const frame = frames.find((f) => f.time === current);
-    if (!frame || playing || opacity === 0 || map.getZoom() < frame.detailMinZoom) return;
+    if (!frame || !frame.detailTiles || playing || opacity === 0 || map.getZoom() < frame.detailMinZoom) return;
     const b = map.getBounds();
     await prepareRadarDetail(
       frame,
